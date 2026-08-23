@@ -1385,7 +1385,7 @@ installButton.addEventListener('click', async () => {
             selected_asset = next(option for option in asset_options if option[0] == selected_label)
             _, selected_bytes, default_name = selected_asset
 
-            st.image(selected_bytes, caption=selected_label, width="stretch")
+            st.image(selected_bytes, caption=selected_label, use_container_width=True)
 
             if "social_post_caption" not in st.session_state:
                 st.session_state["social_post_caption"] = "Fresh 3D concept created in RKstudio3Dps."
@@ -1464,7 +1464,7 @@ installButton.addEventListener('click', async () => {
             social_links = [
                 ("TikTok", "https://www.tiktok.com/"),
                 ("Canva", "https://www.canva.com/"),
-                ("TikTok Shop", "https://seller-uk.tiktok.com/homepage?shop_region=GB"),
+                ("TikTok Shop", "https://shop.tiktok.com/"),
             ]
             social_cols = st.columns(len(social_links))
             for idx, (label, url) in enumerate(social_links):
@@ -1484,7 +1484,7 @@ installButton.addEventListener('click', async () => {
             ("ChatGPT", "https://chatgpt.com"),
             ("Claude", "https://claude.ai"),
             ("Shopify", "https://www.shopify.com"),
-            ("TikTok Shop", "https://seller-uk.tiktok.com/homepage?shop_region=GB"),
+            ("TikTok Shop", "https://shop.tiktok.com/"),
             ("TikTok", "https://www.tiktok.com/"),
             ("Printful", "https://www.printful.com"),
             ("Etsy", "https://www.etsy.com"),
