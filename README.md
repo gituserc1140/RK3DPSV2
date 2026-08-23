@@ -12,6 +12,7 @@ Streamlit app for turning text prompts into images and then converting those ima
 - AI chat assistant powered by Cohere for idea generation and workflow guidance
 - Cohere-powered blog writer tab for generating Markdown blog drafts from a question/topic
 - Cohere-powered prompt examples tab for generating reusable prompt ideas from a topic
+- Social Share tab for preparing generated images or 3D preview snapshots for TikTok-style posting
 - PWA metadata and service worker support
 
 ## Run locally
