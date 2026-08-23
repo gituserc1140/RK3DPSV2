@@ -19,6 +19,10 @@ from PIL import Image, ImageDraw
 
 load_dotenv()
 
+DEFAULT_SOCIAL_CAPTION = "Fresh 3D concept created in this app."
+DEFAULT_SOCIAL_TAGS = "3d, 3dmodel, digitalart, tiktok"
+DEFAULT_SOCIAL_CTA = "What should I create next?"
+
 
 def get_api_key(key_name):
     """Get API key from environment or Streamlit secrets."""
@@ -1373,17 +1377,19 @@ installButton.addEventListener('click', async () => {
 
         asset_options = []
         if image_bytes:
-            asset_options.append(("Generated image", image_bytes, "generated-image"))
+            image_ext = os.path.splitext(image_path)[1].lower() or ".png"
+            image_mime = "image/jpeg" if image_ext in {".jpg", ".jpeg"} else "image/png" if image_ext == ".png" else "application/octet-stream"
+            asset_options.append(("Generated image", image_bytes, "generated-image", image_ext, image_mime))
         if snapshot_png:
-            asset_options.append(("3D model preview", snapshot_png, "3d-model-preview"))
+            asset_options.append(("3D model preview", snapshot_png, "3d-model-preview", ".png", "image/png"))
 
         if not asset_options:
             st.info("Generate an image or a 3D model preview first, then return here to prepare a social post.")
         else:
-            asset_labels = [label for label, _, _ in asset_options]
+            asset_labels = [label for label, _, _, _, _ in asset_options]
             selected_label = st.radio("Content to prepare", asset_labels, horizontal=True)
             selected_asset = next(option for option in asset_options if option[0] == selected_label)
-            _, selected_bytes, default_name = selected_asset
+            _, selected_bytes, default_name, default_extension, default_mime = selected_asset
 
             st.image(selected_bytes, caption=selected_label, use_container_width=True)
 
@@ -1399,20 +1405,20 @@ installButton.addEventListener('click', async () => {
             )
             st.text_area(
                 "Caption",
-                value=st.session_state.get("social_post_caption", "Fresh 3D concept created in RKstudio3Dps."),
+                value=st.session_state.get("social_post_caption", DEFAULT_SOCIAL_CAPTION),
                 key="social_post_caption",
                 height=120,
                 placeholder="Describe the model, the style, or the idea behind it.",
             )
             st.text_input(
                 "Hashtags (comma or space separated)",
-                value=st.session_state.get("social_post_tags", "3d, 3dmodel, digitalart, tiktok"),
+                value=st.session_state.get("social_post_tags", DEFAULT_SOCIAL_TAGS),
                 key="social_post_tags",
                 placeholder="3d, 3dprinting, characterdesign",
             )
             st.text_input(
                 "Call to action",
-                value=st.session_state.get("social_post_cta", "What should I create next?"),
+                value=st.session_state.get("social_post_cta", DEFAULT_SOCIAL_CTA),
                 key="social_post_cta",
                 placeholder="Example: Follow for more model drops.",
             )
@@ -1445,8 +1451,8 @@ installButton.addEventListener('click', async () => {
                 st.download_button(
                     "Download Social Image",
                     data=selected_bytes,
-                    file_name=f"{safe_name_social}.png",
-                    mime="image/png",
+                    file_name=f"{safe_name_social}{default_extension}",
+                    mime=default_mime,
                     key="download_social_asset",
                 )
             with export_cols[1]:
