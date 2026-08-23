@@ -1387,13 +1387,6 @@ installButton.addEventListener('click', async () => {
 
             st.image(selected_bytes, caption=selected_label, use_container_width=True)
 
-            if "social_post_caption" not in st.session_state:
-                st.session_state["social_post_caption"] = "Fresh 3D concept created in RKstudio3Dps."
-            if "social_post_tags" not in st.session_state:
-                st.session_state["social_post_tags"] = "3d, 3dmodel, digitalart, tiktok"
-            if "social_post_cta" not in st.session_state:
-                st.session_state["social_post_cta"] = "What should I create next?"
-
             post_format = st.selectbox(
                 "Post format",
                 ["Showcase", "Behind the scenes", "Shop promo"],
@@ -1406,17 +1399,20 @@ installButton.addEventListener('click', async () => {
             )
             st.text_area(
                 "Caption",
+                value=st.session_state.get("social_post_caption", "Fresh 3D concept created in RKstudio3Dps."),
                 key="social_post_caption",
                 height=120,
                 placeholder="Describe the model, the style, or the idea behind it.",
             )
             st.text_input(
                 "Hashtags (comma or space separated)",
+                value=st.session_state.get("social_post_tags", "3d, 3dmodel, digitalart, tiktok"),
                 key="social_post_tags",
                 placeholder="3d, 3dprinting, characterdesign",
             )
             st.text_input(
                 "Call to action",
+                value=st.session_state.get("social_post_cta", "What should I create next?"),
                 key="social_post_cta",
                 placeholder="Example: Follow for more model drops.",
             )
@@ -1437,10 +1433,11 @@ installButton.addEventListener('click', async () => {
                 ]
                 if part
             )
-            caption_download = formatted_post or "Add a caption, CTA, or hashtags to build your post."
+            empty_post_message = "Add a caption, CTA, or hashtags to build your post."
+            caption_download = formatted_post or empty_post_message
 
             st.markdown("### Caption Preview")
-            st.code(formatted_post or "Add a caption to build your post preview.", language="markdown")
+            st.code(formatted_post or empty_post_message, language="markdown")
 
             safe_name_social = sanitize_filename(filename_social) or default_name
             export_cols = st.columns(2)
