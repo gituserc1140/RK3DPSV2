@@ -1390,12 +1390,17 @@ installButton.addEventListener('click', async () => {
             selected_label = st.radio("Content to prepare", asset_labels, horizontal=True)
             selected_asset = next(option for option in asset_options if option[0] == selected_label)
             _, selected_bytes, default_name, default_extension, default_mime = selected_asset
+            format_intro = {
+                "Showcase": "✨ New 3D concept reveal",
+                "Behind the scenes": "🛠️ Behind the build",
+                "Shop promo": "🛍️ New product-style mockup",
+            }
 
             st.image(selected_bytes, caption=selected_label, use_container_width=True)
 
             post_format = st.selectbox(
                 "Post format",
-                ["Showcase", "Behind the scenes", "Shop promo"],
+                list(format_intro.keys()),
                 key="social_post_format",
             )
             filename_social = st.text_input(
@@ -1423,12 +1428,7 @@ installButton.addEventListener('click', async () => {
                 placeholder="Example: Follow for more model drops.",
             )
 
-            format_intro = {
-                "Showcase": "✨ New 3D concept reveal",
-                "Behind the scenes": "🛠️ Behind the build",
-                "Shop promo": "🛍️ New product-style mockup",
-            }
-            normalized_tags = normalize_hashtags(st.session_state.get("social_post_tags", ""))
+            normalized_tags = normalize_hashtags(st.session_state.get("social_post_tags", DEFAULT_SOCIAL_TAGS))
             formatted_post = "\n\n".join(
                 part
                 for part in [
