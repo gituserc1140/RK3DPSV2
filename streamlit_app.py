@@ -1378,7 +1378,11 @@ installButton.addEventListener('click', async () => {
         asset_options = []
         if image_bytes:
             image_ext = os.path.splitext(image_path)[1].lower() or ".png"
-            image_mime = "image/jpeg" if image_ext in {".jpg", ".jpeg"} else "image/png" if image_ext == ".png" else "application/octet-stream"
+            image_mime = {
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".png": "image/png",
+            }.get(image_ext, "application/octet-stream")
             asset_options.append(("Generated image", image_bytes, "generated-image", image_ext, image_mime))
         if snapshot_png:
             asset_options.append(("3D model preview", snapshot_png, "3d-model-preview", ".png", "image/png"))
@@ -1428,22 +1432,25 @@ installButton.addEventListener('click', async () => {
                 placeholder="Example: Follow for more model drops.",
             )
 
+            caption_body = st.session_state.get("social_post_caption", "").strip()
+            cta_body = st.session_state.get("social_post_cta", "").strip()
             normalized_tags = normalize_hashtags(st.session_state.get("social_post_tags", DEFAULT_SOCIAL_TAGS))
+            has_user_content = any([caption_body, cta_body, normalized_tags])
             formatted_post = "\n\n".join(
                 part
                 for part in [
                     format_intro.get(post_format, ""),
-                    st.session_state.get("social_post_caption", "").strip(),
-                    st.session_state.get("social_post_cta", "").strip(),
+                    caption_body,
+                    cta_body,
                     normalized_tags,
                 ]
                 if part
             )
             empty_post_message = "Add a caption, CTA, or hashtags to build your post."
-            caption_download = formatted_post or empty_post_message
+            caption_download = formatted_post if has_user_content else empty_post_message
 
             st.markdown("### Caption Preview")
-            st.code(formatted_post or empty_post_message, language="markdown")
+            st.code(formatted_post if has_user_content else empty_post_message, language="markdown")
 
             safe_name_social = sanitize_filename(filename_social) or default_name
             export_cols = st.columns(2)
