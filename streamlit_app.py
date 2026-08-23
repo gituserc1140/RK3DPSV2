@@ -22,6 +22,11 @@ load_dotenv()
 DEFAULT_SOCIAL_CAPTION = "Fresh 3D concept created in this app."
 DEFAULT_SOCIAL_TAGS = "3d, 3dmodel, digitalart, tiktok"
 DEFAULT_SOCIAL_CTA = "What should I create next?"
+SOCIAL_POST_FORMAT_INTROS = {
+    "Showcase": "✨ New 3D concept reveal",
+    "Behind the scenes": "🛠️ Behind the build",
+    "Shop promo": "🛍️ New product-style mockup",
+}
 
 
 def get_api_key(key_name):
@@ -1394,17 +1399,12 @@ installButton.addEventListener('click', async () => {
             selected_label = st.radio("Content to prepare", asset_labels, horizontal=True)
             selected_asset = next(option for option in asset_options if option[0] == selected_label)
             _, selected_bytes, default_name, default_extension, default_mime = selected_asset
-            format_intro = {
-                "Showcase": "✨ New 3D concept reveal",
-                "Behind the scenes": "🛠️ Behind the build",
-                "Shop promo": "🛍️ New product-style mockup",
-            }
 
             st.image(selected_bytes, caption=selected_label, use_container_width=True)
 
             post_format = st.selectbox(
                 "Post format",
-                list(format_intro.keys()),
+                list(SOCIAL_POST_FORMAT_INTROS.keys()),
                 key="social_post_format",
             )
             filename_social = st.text_input(
@@ -1435,17 +1435,19 @@ installButton.addEventListener('click', async () => {
             caption_body = st.session_state.get("social_post_caption", "").strip()
             cta_body = st.session_state.get("social_post_cta", "").strip()
             normalized_tags = normalize_hashtags(st.session_state.get("social_post_tags", DEFAULT_SOCIAL_TAGS))
-            has_user_content = any([caption_body, cta_body, normalized_tags])
-            formatted_post = "\n\n".join(
-                part
-                for part in [
-                    format_intro.get(post_format, ""),
-                    caption_body,
-                    cta_body,
-                    normalized_tags,
-                ]
-                if part
-            )
+            has_user_content = any((caption_body, cta_body, normalized_tags))
+            formatted_post = ""
+            if has_user_content:
+                formatted_post = "\n\n".join(
+                    part
+                    for part in [
+                        SOCIAL_POST_FORMAT_INTROS.get(post_format, ""),
+                        caption_body,
+                        cta_body,
+                        normalized_tags,
+                    ]
+                    if part
+                )
             empty_post_message = "Add a caption, CTA, or hashtags to build your post."
             caption_download = formatted_post if has_user_content else empty_post_message
 
