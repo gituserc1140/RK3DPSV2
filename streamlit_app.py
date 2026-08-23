@@ -1397,7 +1397,10 @@ installButton.addEventListener('click', async () => {
         else:
             asset_labels = [label for label, _, _, _, _ in asset_options]
             selected_label = st.radio("Content to prepare", asset_labels, horizontal=True)
-            selected_asset = next(option for option in asset_options if option[0] == selected_label)
+            selected_asset = next((option for option in asset_options if option[0] == selected_label), None)
+            if not selected_asset:
+                st.error("Could not load the selected asset for sharing.")
+                st.stop()
             _, selected_bytes, default_name, default_extension, default_mime = selected_asset
 
             st.image(selected_bytes, caption=selected_label, use_container_width=True)
@@ -1449,7 +1452,6 @@ installButton.addEventListener('click', async () => {
                     if part
                 )
             empty_post_message = "Add a caption, CTA, or hashtags to build your post."
-            caption_download = formatted_post if has_user_content else empty_post_message
 
             st.markdown("### Caption Preview")
             st.code(formatted_post if has_user_content else empty_post_message, language="markdown")
@@ -1467,9 +1469,10 @@ installButton.addEventListener('click', async () => {
             with export_cols[1]:
                 st.download_button(
                     "Download Caption Text",
-                    data=caption_download.encode("utf-8"),
+                    data=formatted_post.encode("utf-8"),
                     file_name=f"{safe_name_social}-caption.txt",
                     mime="text/plain",
+                    disabled=not has_user_content,
                     key="download_social_caption",
                 )
 
