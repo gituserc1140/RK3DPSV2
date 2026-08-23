@@ -1437,6 +1437,7 @@ installButton.addEventListener('click', async () => {
                 ]
                 if part
             )
+            caption_download = formatted_post or "Add a caption, CTA, or hashtags to build your post."
 
             st.markdown("### Caption Preview")
             st.code(formatted_post or "Add a caption to build your post preview.", language="markdown")
@@ -1454,7 +1455,7 @@ installButton.addEventListener('click', async () => {
             with export_cols[1]:
                 st.download_button(
                     "Download Caption Text",
-                    data=formatted_post.encode("utf-8"),
+                    data=caption_download.encode("utf-8"),
                     file_name=f"{safe_name_social}-caption.txt",
                     mime="text/plain",
                     key="download_social_caption",
