@@ -1397,10 +1397,7 @@ installButton.addEventListener('click', async () => {
         else:
             asset_labels = [label for label, _, _, _, _ in asset_options]
             selected_label = st.radio("Content to prepare", asset_labels, horizontal=True)
-            selected_asset = next((option for option in asset_options if option[0] == selected_label), None)
-            if not selected_asset:
-                st.error("Could not load the selected asset for sharing.")
-                st.stop()
+            selected_asset = next((option for option in asset_options if option[0] == selected_label), asset_options[0])
             _, selected_bytes, default_name, default_extension, default_mime = selected_asset
 
             st.image(selected_bytes, caption=selected_label, use_container_width=True)
@@ -1472,7 +1469,7 @@ installButton.addEventListener('click', async () => {
                     data=formatted_post.encode("utf-8"),
                     file_name=f"{safe_name_social}-caption.txt",
                     mime="text/plain",
-                    disabled=not has_user_content,
+                    disabled=not bool(formatted_post),
                     key="download_social_caption",
                 )
 
