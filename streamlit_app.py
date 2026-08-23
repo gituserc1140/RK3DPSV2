@@ -5,6 +5,7 @@ import traceback
 import io
 import math
 import base64
+import re
 
 import numpy as np
 import plotly.graph_objects as go
@@ -604,6 +605,28 @@ def get_session_glb_path():
     return tmp.name
 
 
+def read_binary_file(path):
+    """Return file bytes for an existing file path."""
+    if not path or not os.path.exists(path):
+        return b""
+    with open(path, "rb") as f:
+        return f.read()
+
+
+def normalize_hashtags(raw_value):
+    """Normalize comma/space separated tags into unique hashtag tokens."""
+    tags = []
+    seen = set()
+    for token in re.split(r"[\s,]+", (raw_value or "").strip()):
+        cleaned = re.sub(r"[^\w-]+", "", token).lstrip("#")
+        lowered = cleaned.lower()
+        if not cleaned or lowered in seen:
+            continue
+        seen.add(lowered)
+        tags.append(f"#{cleaned}")
+    return " ".join(tags)
+
+
 def setup_pwa():
     """Setup PWA manifest and service worker."""
     pwa_html = """
@@ -746,7 +769,7 @@ installButton.addEventListener('click', async () => {
 
     st.markdown(install_button_html, unsafe_allow_html=True)
 
-    tab_details, tab_prompt, tab_chat, tab1, tab2, tab3, tab4_obj, tab4_stl, tab_blog, tab_links = st.tabs([
+    tab_details, tab_prompt, tab_chat, tab1, tab2, tab3, tab4_obj, tab4_stl, tab_blog, tab_social, tab_links = st.tabs([
         "Details",
         "3D Model Prompt Ideas (Cohere)",
         "AI Chat Assistant",
@@ -756,12 +779,11 @@ installButton.addEventListener('click', async () => {
         "Convert to OBJ",
         "Convert to STL",
         "Blog Writer (Cohere)",
+        "Social Share",
         "Links",
     ])
 
     def sanitize_filename(name):
-        import re
-
         return re.sub(r"[^\w\-]+", "_", (name or "").strip())
 
     with tab1:
@@ -1336,13 +1358,125 @@ installButton.addEventListener('click', async () => {
 - **3D Print Art** — Cults3D, Tinkercad
 - **Ecommerce** — Shopify, TikTok Shop, Printful, Etsy
 - **Social Editing** — Canva, TikTok
+- **Social Sharing** — export generated images or 3D previews for posting
 - **Blog** — Medium
 - **AI** — ChatGPT, Claude
 """)
 
+    with tab_social:
+        st.subheader("Social Share")
+        st.caption("Prepare a generated image or 3D preview for social posting. Direct TikTok posting is not built in yet.")
+
+        image_path = st.session_state.get("image_path")
+        image_bytes = read_binary_file(image_path)
+        snapshot_png = st.session_state.get("glb_preview_png")
+
+        asset_options = []
+        if image_bytes:
+            asset_options.append(("Generated image", image_bytes, "generated-image"))
+        if snapshot_png:
+            asset_options.append(("3D model preview", snapshot_png, "3d-model-preview"))
+
+        if not asset_options:
+            st.info("Generate an image or a 3D model preview first, then return here to prepare a social post.")
+        else:
+            asset_labels = [label for label, _, _ in asset_options]
+            selected_label = st.radio("Content to prepare", asset_labels, horizontal=True)
+            selected_asset = next(option for option in asset_options if option[0] == selected_label)
+            _, selected_bytes, default_name = selected_asset
+
+            st.image(selected_bytes, caption=selected_label, width="stretch")
+
+            if "social_post_caption" not in st.session_state:
+                st.session_state["social_post_caption"] = "Fresh 3D concept created in RKstudio3Dps."
+            if "social_post_tags" not in st.session_state:
+                st.session_state["social_post_tags"] = "3d, 3dmodel, digitalart, tiktok"
+            if "social_post_cta" not in st.session_state:
+                st.session_state["social_post_cta"] = "What should I create next?"
+
+            post_format = st.selectbox(
+                "Post format",
+                ["Showcase", "Behind the scenes", "Shop promo"],
+                key="social_post_format",
+            )
+            filename_social = st.text_input(
+                "Download filename (no extension)",
+                value=default_name,
+                key="filename_social_tab",
+            )
+            st.text_area(
+                "Caption",
+                key="social_post_caption",
+                height=120,
+                placeholder="Describe the model, the style, or the idea behind it.",
+            )
+            st.text_input(
+                "Hashtags (comma or space separated)",
+                key="social_post_tags",
+                placeholder="3d, 3dprinting, characterdesign",
+            )
+            st.text_input(
+                "Call to action",
+                key="social_post_cta",
+                placeholder="Example: Follow for more model drops.",
+            )
+
+            format_intro = {
+                "Showcase": "✨ New 3D concept reveal",
+                "Behind the scenes": "🛠️ Behind the build",
+                "Shop promo": "🛍️ New product-style mockup",
+            }
+            normalized_tags = normalize_hashtags(st.session_state.get("social_post_tags", ""))
+            formatted_post = "\n\n".join(
+                part
+                for part in [
+                    format_intro.get(post_format, ""),
+                    st.session_state.get("social_post_caption", "").strip(),
+                    st.session_state.get("social_post_cta", "").strip(),
+                    normalized_tags,
+                ]
+                if part
+            )
+
+            st.markdown("### Caption Preview")
+            st.code(formatted_post or "Add a caption to build your post preview.", language="markdown")
+
+            safe_name_social = sanitize_filename(filename_social) or default_name
+            export_cols = st.columns(2)
+            with export_cols[0]:
+                st.download_button(
+                    "Download Social Image",
+                    data=selected_bytes,
+                    file_name=f"{safe_name_social}.png",
+                    mime="image/png",
+                    key="download_social_asset",
+                )
+            with export_cols[1]:
+                st.download_button(
+                    "Download Caption Text",
+                    data=formatted_post.encode("utf-8"),
+                    file_name=f"{safe_name_social}-caption.txt",
+                    mime="text/plain",
+                    key="download_social_caption",
+                )
+
+            st.markdown("### Open Platforms")
+            social_links = [
+                ("TikTok", "https://www.tiktok.com/"),
+                ("Canva", "https://www.canva.com/"),
+                ("TikTok Shop", "https://seller-uk.tiktok.com/homepage?shop_region=GB"),
+            ]
+            social_cols = st.columns(len(social_links))
+            for idx, (label, url) in enumerate(social_links):
+                with social_cols[idx]:
+                    if hasattr(st, "link_button"):
+                        st.link_button(label, url, use_container_width=True)
+                    else:
+                        st.markdown(f"[{label}]({url})")
+
     with tab_links:
         st.subheader("Links")
-        st.caption("Quick links to tools for writing, ecommerce, and 3D creation.")
+        st.caption("Quick links to tools for writing, ecommerce, social sharing, and 3D creation.")
 
         links = [
             ("Canva", "https://www.canva.com"),
