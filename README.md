@@ -1,5 +1,7 @@
 # Image to 3D Generator
 
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://gituserc1140-rk3dpsv2-streamlit-app-main.streamlit.app)
+
 Streamlit app for turning text prompts into images and then converting those images into 3D models.
 
 ## Features
