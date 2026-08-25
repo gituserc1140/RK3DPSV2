@@ -9,7 +9,9 @@ Streamlit app for turning text prompts into images and then converting those ima
 - Image generation with OpenAI or SDXL via Hugging Face
 - 3D model generation with Stability AI or Tripo3D
 - Interactive GLB viewer in the browser
-- AI chat assistant powered by Cohere for idea generation and workflow guidance
+- Interactive AI workflow agent (Cohere-powered) with explicit modes for idea generation, prompt refinement, troubleshooting, and conversion guidance
+- Shared in-app agent context (image mode, model mode, latest prompt, generated assets, and conversion state) for grounded responses
+- One-click agent actions to apply suggestions to image prompts, prompt ideas, blog topics, and social captions
 - Cohere-powered blog writer tab for generating Markdown blog drafts from a question/topic
 - Cohere-powered prompt examples tab for generating reusable prompt ideas from a topic
 - Social Share tab for preparing generated images or 3D preview snapshots for TikTok-style posting
@@ -25,7 +27,7 @@ pip install -r requirements.txt
 
 **Important:** Never commit API keys to version control. Set environment variables in a local `.env` file (ensure `.env` is in `.gitignore`). **Do not commit the `.env` file.**
 
-Example `.env` file:
+Example `.env` file (required for AI agent/chat, blog writer, and prompt ideas):
 
 ```bash
 OPENAI_API_KEY=your_openai_key
