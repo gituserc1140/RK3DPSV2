@@ -680,7 +680,7 @@ def build_agent_context_snapshot():
     return {
         "image_mode": st.session_state.get("image_mode_select", "Fast_Mode_OA"),
         "model_mode": st.session_state.get("model_mode_select", "Medium_Quality_Mode_STA"),
-        "latest_image_prompt": _short_text(st.session_state.get("image_prompt", "")),
+        "latest_image_prompt": _short_text(st.session_state.get("image_prompt_value", st.session_state.get("image_prompt", ""))),
         "image_ready": bool(image_path and os.path.exists(image_path)),
         "glb_ready": bool(glb_path and os.path.exists(glb_path)),
         "preview_ready": bool(st.session_state.get("glb_preview_png")),
@@ -883,11 +883,12 @@ installButton.addEventListener('click', async () => {
 
     with tab1:
         st.caption("Remember to check API usage!")
-        if "image_prompt" not in st.session_state:
-            st.session_state["image_prompt"] = "One Single Stylized simple multicoloured Common Holly performing Heterophylly whilst presented on a sturdy figurine base suitable for 3D printing."
+        if "image_prompt_value" not in st.session_state:
+            st.session_state["image_prompt_value"] = "One Single Stylized simple multicoloured Common Holly performing Heterophylly whilst presented on a sturdy figurine base suitable for 3D printing."
         mode = st.selectbox("Select Image Generation Mode", ["Fast_Mode_OA", "Slow_Mode_SDXL"], index=0, key="image_mode_select")
         prompt = st.text_area(
             "Image prompt",
+            value=st.session_state["image_prompt_value"],
             key="image_prompt",
         )
 
@@ -1306,7 +1307,7 @@ installButton.addEventListener('click', async () => {
                             key=f"copy_image_prompt_{message_key}",
                             disabled=not bool(suggestion),
                         ):
-                            st.session_state["image_prompt"] = suggestion
+                            st.session_state["image_prompt_value"] = suggestion
                             st.session_state["agent_last_status"] = "Copied suggestion to image prompt field."
                             st.rerun()
                     with action_cols[2]:
