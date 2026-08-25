@@ -535,7 +535,7 @@ def display_3d_model(glb_path, chart_key=None):
         st.warning(f"3D preview failed to load interactively: {exc}")
         try:
             snapshot_bytes = build_static_snapshot(glb_path, str(exc))
-            st.image(snapshot_bytes, caption="Static snapshot fallback", width="stretch")
+            st.image(snapshot_bytes, caption="Static snapshot fallback", use_container_width=True)
         except Exception as snapshot_exc:
             st.info(f"Static snapshot also failed: {snapshot_exc}")
         return
@@ -543,7 +543,7 @@ def display_3d_model(glb_path, chart_key=None):
     show_preview_mode_badge("Interactive")
     st.plotly_chart(
         figure,
-        width="stretch",
+        use_container_width=True,
         config={"displaylogo": False, "scrollZoom": True},
         key=chart_key,
     )
@@ -974,7 +974,7 @@ installButton.addEventListener('click', async () => {
                 snapshot_png = st.session_state.get("glb_preview_png")
                 if snapshot_png:
                     st.subheader("Model Image Preview")
-                    st.image(snapshot_png, caption="Snapshot of generated GLB", width="stretch")
+                    st.image(snapshot_png, caption="Snapshot of generated GLB", use_container_width=True)
                 st.subheader("Current 3D Preview")
                 restored_tag = "restored-from-session" if st.session_state.get("glb_restored_from_bytes") else "direct-file"
                 st.caption(f"Debug render source: {current_glb_path} ({restored_tag})")
@@ -997,7 +997,7 @@ installButton.addEventListener('click', async () => {
             snapshot_png = st.session_state.get("glb_preview_png")
             if snapshot_png:
                 st.subheader("Model Image Preview")
-                st.image(snapshot_png, caption="Snapshot of selected GLB", width="stretch")
+                st.image(snapshot_png, caption="Snapshot of selected GLB", use_container_width=True)
             restored_tag = "restored-from-session" if st.session_state.get("glb_restored_from_bytes") else "direct-file"
             st.caption(f"Debug render source: {current_glb_path} ({restored_tag})")
             display_3d_model(current_glb_path, chart_key="tab3_plotly_preview")
