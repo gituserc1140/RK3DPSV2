@@ -6,6 +6,7 @@ import io
 import math
 import base64
 import re
+import uuid
 
 import numpy as np
 import plotly.graph_objects as go
@@ -636,6 +637,91 @@ def normalize_hashtags(raw_value):
     return " ".join(tags)
 
 
+def _short_text(value, max_len=180):
+    """Return compact single-line text for context displays."""
+    compact = " ".join((value or "").split())
+    if len(compact) <= max_len:
+        return compact
+    return compact[: max_len - 3] + "..."
+
+
+def extract_primary_suggestion(text):
+    """Extract the most actionable suggestion from assistant text."""
+    if not text:
+        return ""
+
+    fenced_match = re.search(r"```(?:[\w+-]*)\n(.*?)```", text, flags=re.DOTALL)
+    if fenced_match:
+        candidate = fenced_match.group(1).strip()
+        if candidate:
+            return candidate
+
+    labelled_match = re.search(
+        r"(?:Suggested prompt|Prompt|Recommendation)\s*:\s*(.+)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if labelled_match:
+        candidate = labelled_match.group(1).strip()
+        if candidate:
+            return candidate
+
+    for line in text.splitlines():
+        cleaned = line.strip().lstrip("-•").strip()
+        if cleaned:
+            return cleaned
+    return ""
+
+
+def build_agent_context_snapshot():
+    """Collect relevant workflow context for the AI agent."""
+    image_path = st.session_state.get("image_path")
+    glb_path = get_session_glb_path()
+    return {
+        "image_mode": st.session_state.get("image_mode_select", "Fast_Mode_OA"),
+        "model_mode": st.session_state.get("model_mode_select", "Medium_Quality_Mode_STA"),
+        "latest_image_prompt": _short_text(st.session_state.get("image_prompt", "")),
+        "image_ready": bool(image_path and os.path.exists(image_path)),
+        "glb_ready": bool(glb_path and os.path.exists(glb_path)),
+        "preview_ready": bool(st.session_state.get("glb_preview_png")),
+        "obj_ready": bool(st.session_state.get("obj_bytes")),
+        "stl_ready": bool(st.session_state.get("stl_bytes")),
+        "conversion_status": st.session_state.get("last_conversion_status", "No conversion yet"),
+    }
+
+
+def build_agent_user_prompt(agent_mode, user_input, context_snapshot):
+    """Build a grounded prompt so the assistant can guide workflow actions."""
+    mode_instructions = {
+        "Idea generation": "Generate fresh concept ideas optimized for image-to-3D workflows.",
+        "Prompt refinement": "Rewrite and improve prompts for clean image generation and 3D conversion.",
+        "Troubleshooting": "Diagnose likely issues and propose concrete next checks/fixes.",
+        "Conversion guidance": "Guide file conversion/export quality and format choices for OBJ/STL workflows.",
+    }
+    context_lines = [
+        f"- Image mode: {context_snapshot['image_mode']}",
+        f"- 3D model mode: {context_snapshot['model_mode']}",
+        f"- Latest image prompt: {context_snapshot['latest_image_prompt'] or 'none'}",
+        f"- Image generated: {'yes' if context_snapshot['image_ready'] else 'no'}",
+        f"- GLB generated: {'yes' if context_snapshot['glb_ready'] else 'no'}",
+        f"- GLB preview ready: {'yes' if context_snapshot['preview_ready'] else 'no'}",
+        f"- OBJ ready: {'yes' if context_snapshot['obj_ready'] else 'no'}",
+        f"- STL ready: {'yes' if context_snapshot['stl_ready'] else 'no'}",
+        f"- Last conversion status: {context_snapshot['conversion_status']}",
+    ]
+    mode_instruction = mode_instructions.get(agent_mode, mode_instructions["Idea generation"])
+    return (
+        "You are the in-app RK3D workflow agent for a Streamlit app that goes from text prompt → image → 3D model → export.\n"
+        f"Current assistance mode: {agent_mode}. {mode_instruction}\n"
+        "Ground every recommendation in the current app context.\n"
+        "Keep responses concise and practical. Use short bullets and include one clearly marked 'Suggested prompt:' line when relevant.\n\n"
+        "App context:\n"
+        + "\n".join(context_lines)
+        + "\n\nUser request:\n"
+        + user_input.strip()
+    )
+
+
 def setup_pwa():
     """Setup PWA manifest and service worker."""
     pwa_html = """
@@ -797,10 +883,12 @@ installButton.addEventListener('click', async () => {
 
     with tab1:
         st.caption("Remember to check API usage!")
+        if "image_prompt" not in st.session_state:
+            st.session_state["image_prompt"] = "One Single Stylized simple multicoloured Common Holly performing Heterophylly whilst presented on a sturdy figurine base suitable for 3D printing."
         mode = st.selectbox("Select Image Generation Mode", ["Fast_Mode_OA", "Slow_Mode_SDXL"], index=0, key="image_mode_select")
         prompt = st.text_area(
             "Image prompt",
-            value="One Single Stylized simple multicoloured Common Holly performing Heterophylly whilst presented on a sturdy figurine base suitable for 3D printing.",
+            key="image_prompt",
         )
 
         if st.button("Generate Image"):
@@ -808,7 +896,11 @@ installButton.addEventListener('click', async () => {
                 image_path = generate_image_openai(prompt) if mode == "Fast_Mode_OA" else generate_image_sdxl(prompt)
                 if image_path:
                     st.session_state["image_path"] = image_path
+                    st.session_state["last_image_generation_status"] = "Image generated successfully."
+                    st.session_state["last_generated_image_prompt"] = prompt
                     st.image(image_path, caption="Generated Image", width=400)
+                else:
+                    st.session_state["last_image_generation_status"] = "Image generation failed."
 
     with tab2:
         st.caption("Remember to check API usage!")
@@ -845,6 +937,7 @@ installButton.addEventListener('click', async () => {
                         )
                         if glb_path:
                             persist_glb_in_session(glb_path)
+                            st.session_state["last_model_generation_status"] = "3D model generated successfully."
                             st.success("3D model generated!")
                             safe_name = sanitize_filename(filename_glb) or "model"
                             with open(glb_path, "rb") as f:
@@ -854,6 +947,8 @@ installButton.addEventListener('click', async () => {
                                     file_name=f"{safe_name}.glb",
                                     mime="model/gltf-binary",
                                 )
+                        else:
+                            st.session_state["last_model_generation_status"] = "3D model generation failed."
             else:
                 filename_glb = st.text_input("GLB filename (no extension)", value="model", key="filename_glb_tab2_tripo")
                 if st.button("Generate 3D Model", key="generate_3d_tripo"):
@@ -861,6 +956,7 @@ installButton.addEventListener('click', async () => {
                         glb_path = generate_3d_model_tripo(image_path)
                         if glb_path:
                             persist_glb_in_session(glb_path)
+                            st.session_state["last_model_generation_status"] = "3D model generated successfully."
                             st.success("3D model generated!")
                             safe_name = sanitize_filename(filename_glb) or "model"
                             with open(glb_path, "rb") as f:
@@ -870,6 +966,8 @@ installButton.addEventListener('click', async () => {
                                     file_name=f"{safe_name}.glb",
                                     mime="model/gltf-binary",
                                 )
+                        else:
+                            st.session_state["last_model_generation_status"] = "3D model generation failed."
 
             current_glb_path = get_session_glb_path()
             if current_glb_path and os.path.exists(current_glb_path):
@@ -937,8 +1035,10 @@ installButton.addEventListener('click', async () => {
                 try:
                     mesh = load_glb_as_mesh(obj_glb_path)
                     st.session_state["obj_bytes"] = export_mesh_bytes(mesh, "obj")
+                    st.session_state["last_conversion_status"] = "OBJ conversion complete."
                     st.success("Conversion to OBJ complete.")
                 except Exception as exc:
+                    st.session_state["last_conversion_status"] = f"OBJ conversion failed: {exc}"
                     st.error(f"OBJ conversion failed: {exc}")
 
             obj_bytes = st.session_state.get("obj_bytes")
@@ -974,8 +1074,10 @@ installButton.addEventListener('click', async () => {
                 try:
                     mesh = load_glb_as_mesh(stl_glb_path)
                     st.session_state["stl_bytes"] = export_mesh_bytes(mesh, "stl")
+                    st.session_state["last_conversion_status"] = "STL conversion complete."
                     st.success("Conversion to STL complete.")
                 except Exception as exc:
+                    st.session_state["last_conversion_status"] = f"STL conversion failed: {exc}"
                     st.error(f"STL conversion failed: {exc}")
 
             stl_bytes = st.session_state.get("stl_bytes")
@@ -1022,6 +1124,12 @@ installButton.addEventListener('click', async () => {
             st.session_state["chat_input"] = ""
         if "chat_input_next" not in st.session_state:
             st.session_state["chat_input_next"] = None
+        if "agent_mode" not in st.session_state:
+            st.session_state["agent_mode"] = "Idea generation"
+        if "agent_last_status" not in st.session_state:
+            st.session_state["agent_last_status"] = ""
+        if "agent_last_suggestion" not in st.session_state:
+            st.session_state["agent_last_suggestion"] = ""
         if "cohere_model" not in st.session_state:
             st.session_state["cohere_model"] = "command-r-plus-08-2024"
         if "cohere_temperature" not in st.session_state:
@@ -1033,6 +1141,25 @@ installButton.addEventListener('click', async () => {
         if st.session_state["chat_input_next"] is not None:
             st.session_state["chat_input"] = st.session_state["chat_input_next"]
             st.session_state["chat_input_next"] = None
+
+        context_snapshot = build_agent_context_snapshot()
+        st.markdown("#### Agent Mode")
+        st.radio(
+            "Choose assistant behavior",
+            ["Idea generation", "Prompt refinement", "Troubleshooting", "Conversion guidance"],
+            key="agent_mode",
+            horizontal=True,
+            label_visibility="collapsed",
+        )
+        st.caption(
+            "Context: "
+            f"image mode={context_snapshot['image_mode']} • model mode={context_snapshot['model_mode']} • "
+            f"image={'ready' if context_snapshot['image_ready'] else 'missing'} • "
+            f"glb={'ready' if context_snapshot['glb_ready'] else 'missing'} • "
+            f"obj={'ready' if context_snapshot['obj_ready'] else 'missing'} • "
+            f"stl={'ready' if context_snapshot['stl_ready'] else 'missing'} • "
+            f"conversion={context_snapshot['conversion_status']}"
+        )
 
         with st.expander("Chat Settings", expanded=True):
             st.selectbox(
@@ -1047,21 +1174,33 @@ installButton.addEventListener('click', async () => {
             st.slider("Temperature", 0.0, 1.0, key="cohere_temperature", step=0.05)
             st.slider("Max output tokens", 100, 2000, key="cohere_max_tokens", step=50)
 
-        cols = st.columns(2)
+        cols = st.columns(3)
         with cols[0]:
             if st.button("Use starter question", key="starter_question"):
                 st.session_state["chat_input_next"] = "Give me 5 creative image ideas that convert well into printable 3D figurines."
                 st.rerun()
         with cols[1]:
-            if st.button("Clear chat", key="clear_chat"):
+            if st.button("Clear chat messages", key="clear_chat"):
                 st.session_state["chat_history"] = []
                 st.session_state["chat_input_next"] = ""
+                st.session_state["agent_last_status"] = "Chat messages cleared (mode/settings kept)."
+                st.rerun()
+        with cols[2]:
+            if st.button("Reset chat + mode", key="reset_assistant_state"):
+                st.session_state["chat_history"] = []
+                st.session_state["chat_input_next"] = ""
+                st.session_state["agent_last_suggestion"] = ""
+                st.session_state["agent_mode"] = "Idea generation"
+                st.session_state["agent_last_status"] = "Assistant state reset."
                 st.rerun()
 
+        if st.session_state.get("agent_last_status"):
+            st.info(st.session_state.get("agent_last_status"))
+
         user_input = st.text_input(
-            "Ask the assistant anything about image + 3D concept ideas",
+            "Ask the workflow agent for guided help",
             key="chat_input",
-            placeholder="Example: Suggest a stylized creature concept with clean silhouette for 3D conversion.",
+            placeholder="Example: Refine my prompt for cleaner GLB conversion and suggest OBJ/STL export settings.",
         )
         if st.button("Send", key="send_chat"):
             if not user_input.strip():
@@ -1074,6 +1213,12 @@ installButton.addEventListener('click', async () => {
                     selected_model = st.session_state.get("cohere_model", "command-a-03-2025")
                     temperature = st.session_state.get("cohere_temperature", 0.7)
                     max_tokens = st.session_state.get("cohere_max_tokens", 450)
+                    context_snapshot = build_agent_context_snapshot()
+                    grounded_input = build_agent_user_prompt(
+                        st.session_state.get("agent_mode", "Idea generation"),
+                        user_input,
+                        context_snapshot,
+                    )
                     model_candidates = [
                         selected_model,
                         "command-r-plus-08-2024",
@@ -1090,7 +1235,7 @@ installButton.addEventListener('click', async () => {
                             with st.spinner("Assistant is thinking..."):
                                 answer = get_cohere_response(
                                     api_key=cohere_api_key,
-                                    user_input=user_input,
+                                    user_input=grounded_input,
                                     history=history,
                                     model_name=model_name,
                                     temperature=temperature,
@@ -1098,6 +1243,9 @@ installButton.addEventListener('click', async () => {
                                 )
                             if answer:
                                 st.session_state["cohere_model"] = model_name
+                                st.session_state["agent_last_status"] = (
+                                    f"Response generated with {model_name} in {st.session_state.get('agent_mode', 'Idea generation')} mode."
+                                )
                                 break
                         except Exception as exc:
                             last_error = exc
@@ -1107,17 +1255,80 @@ installButton.addEventListener('click', async () => {
 
                     if not answer:
                         answer = "I could not generate a response. Please try again."
+                        st.session_state["agent_last_status"] = "Model returned an empty response; fallback text was used."
 
-                    st.session_state["chat_history"].append({"role": "user", "content": user_input})
-                    st.session_state["chat_history"].append({"role": "assistant", "content": answer})
+                    suggestion = extract_primary_suggestion(answer)
+                    st.session_state["chat_history"].append(
+                        {"id": f"user-{uuid.uuid4().hex}", "role": "user", "content": user_input}
+                    )
+                    st.session_state["chat_history"].append(
+                        {
+                            "id": f"assistant-{uuid.uuid4().hex}",
+                            "role": "assistant",
+                            "content": answer,
+                            "suggestion": suggestion,
+                        }
+                    )
+                    st.session_state["agent_last_suggestion"] = suggestion
                     st.session_state["chat_input_next"] = ""
                     st.rerun()
                 except Exception as exc:
+                    st.session_state["agent_last_status"] = f"Assistant request failed: {exc}"
                     st.error(f"Cohere chat failed: {exc}")
 
-        for msg in st.session_state["chat_history"]:
-            label = "You" if msg["role"] == "user" else "Assistant"
-            st.markdown(f"**{label}:** {msg['content']}")
+        for idx, msg in enumerate(st.session_state["chat_history"]):
+            if "id" not in msg:
+                msg["id"] = f"legacy-{uuid.uuid4().hex}"
+            message_key = msg["id"]
+            if msg["role"] == "user":
+                with st.chat_message("user"):
+                    st.markdown(msg["content"])
+            else:
+                with st.chat_message("assistant"):
+                    st.markdown(msg["content"])
+                    if "suggestion" not in msg:
+                        suggestion = extract_primary_suggestion(msg["content"])
+                        msg["suggestion"] = suggestion
+                    suggestion = msg.get("suggestion", "")
+                    action_cols = st.columns(4)
+                    with action_cols[0]:
+                        if st.button(
+                            "Apply suggested prompt",
+                            key=f"apply_suggested_prompt_{message_key}",
+                            disabled=not bool(suggestion),
+                        ):
+                            st.session_state["prompt_topic"] = suggestion
+                            st.session_state["agent_last_status"] = "Applied suggestion to 3D prompt ideas topic."
+                            st.rerun()
+                    with action_cols[1]:
+                        if st.button(
+                            "Copy to image prompt",
+                            key=f"copy_image_prompt_{message_key}",
+                            disabled=not bool(suggestion),
+                        ):
+                            st.session_state["image_prompt"] = suggestion
+                            st.session_state["agent_last_status"] = "Copied suggestion to image prompt field."
+                            st.rerun()
+                    with action_cols[2]:
+                        if st.button(
+                            "Copy to blog topic",
+                            key=f"copy_blog_topic_{message_key}",
+                            disabled=not bool(suggestion),
+                        ):
+                            st.session_state["blog_question"] = suggestion
+                            st.session_state["agent_last_status"] = "Copied suggestion to blog draft topic."
+                            st.rerun()
+                    with action_cols[3]:
+                        if st.button(
+                            "Prepare social caption",
+                            key=f"prepare_social_caption_{message_key}",
+                            disabled=not bool(suggestion),
+                        ):
+                            st.session_state["social_post_caption"] = suggestion
+                            st.session_state["social_post_tags"] = st.session_state.get("social_post_tags", DEFAULT_SOCIAL_TAGS)
+                            st.session_state["social_post_cta"] = st.session_state.get("social_post_cta", DEFAULT_SOCIAL_CTA)
+                            st.session_state["agent_last_status"] = "Prepared social caption fields from assistant suggestion."
+                            st.rerun()
 
     with tab_blog:
         st.subheader("Cohere Blog Writer")
