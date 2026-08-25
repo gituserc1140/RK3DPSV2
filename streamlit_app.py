@@ -6,6 +6,7 @@ import io
 import math
 import base64
 import re
+import uuid
 
 import numpy as np
 import plotly.graph_objects as go
@@ -1179,15 +1180,17 @@ installButton.addEventListener('click', async () => {
                 st.session_state["chat_input_next"] = "Give me 5 creative image ideas that convert well into printable 3D figurines."
                 st.rerun()
         with cols[1]:
-            if st.button("Clear chat", key="clear_chat"):
+            if st.button("Clear chat messages", key="clear_chat"):
                 st.session_state["chat_history"] = []
                 st.session_state["chat_input_next"] = ""
+                st.session_state["agent_last_status"] = "Chat messages cleared (mode/settings kept)."
                 st.rerun()
         with cols[2]:
-            if st.button("Reset assistant state", key="reset_assistant_state"):
+            if st.button("Reset chat + mode", key="reset_assistant_state"):
                 st.session_state["chat_history"] = []
                 st.session_state["chat_input_next"] = ""
                 st.session_state["agent_last_suggestion"] = ""
+                st.session_state["agent_mode"] = "Idea generation"
                 st.session_state["agent_last_status"] = "Assistant state reset."
                 st.rerun()
 
@@ -1254,9 +1257,19 @@ installButton.addEventListener('click', async () => {
                         answer = "I could not generate a response. Please try again."
                         st.session_state["agent_last_status"] = "Model returned an empty response; fallback text was used."
 
-                    st.session_state["chat_history"].append({"role": "user", "content": user_input})
-                    st.session_state["chat_history"].append({"role": "assistant", "content": answer})
-                    st.session_state["agent_last_suggestion"] = extract_primary_suggestion(answer)
+                    suggestion = extract_primary_suggestion(answer)
+                    st.session_state["chat_history"].append(
+                        {"id": f"user-{uuid.uuid4().hex}", "role": "user", "content": user_input}
+                    )
+                    st.session_state["chat_history"].append(
+                        {
+                            "id": f"assistant-{uuid.uuid4().hex}",
+                            "role": "assistant",
+                            "content": answer,
+                            "suggestion": suggestion,
+                        }
+                    )
+                    st.session_state["agent_last_suggestion"] = suggestion
                     st.session_state["chat_input_next"] = ""
                     st.rerun()
                 except Exception as exc:
@@ -1264,18 +1277,24 @@ installButton.addEventListener('click', async () => {
                     st.error(f"Cohere chat failed: {exc}")
 
         for idx, msg in enumerate(st.session_state["chat_history"]):
+            if "id" not in msg:
+                msg["id"] = f"legacy-{uuid.uuid4().hex}"
+            message_key = msg["id"]
             if msg["role"] == "user":
                 with st.chat_message("user"):
                     st.markdown(msg["content"])
             else:
                 with st.chat_message("assistant"):
                     st.markdown(msg["content"])
-                    suggestion = extract_primary_suggestion(msg["content"])
+                    if "suggestion" not in msg:
+                        suggestion = extract_primary_suggestion(msg["content"])
+                        msg["suggestion"] = suggestion
+                    suggestion = msg.get("suggestion", "")
                     action_cols = st.columns(4)
                     with action_cols[0]:
                         if st.button(
                             "Apply suggested prompt",
-                            key=f"apply_suggested_prompt_{idx}",
+                            key=f"apply_suggested_prompt_{message_key}",
                             disabled=not bool(suggestion),
                         ):
                             st.session_state["prompt_topic"] = suggestion
@@ -1284,7 +1303,7 @@ installButton.addEventListener('click', async () => {
                     with action_cols[1]:
                         if st.button(
                             "Copy to image prompt",
-                            key=f"copy_image_prompt_{idx}",
+                            key=f"copy_image_prompt_{message_key}",
                             disabled=not bool(suggestion),
                         ):
                             st.session_state["image_prompt"] = suggestion
@@ -1293,7 +1312,7 @@ installButton.addEventListener('click', async () => {
                     with action_cols[2]:
                         if st.button(
                             "Copy to blog topic",
-                            key=f"copy_blog_topic_{idx}",
+                            key=f"copy_blog_topic_{message_key}",
                             disabled=not bool(suggestion),
                         ):
                             st.session_state["blog_question"] = suggestion
@@ -1302,7 +1321,7 @@ installButton.addEventListener('click', async () => {
                     with action_cols[3]:
                         if st.button(
                             "Prepare social caption",
-                            key=f"prepare_social_caption_{idx}",
+                            key=f"prepare_social_caption_{message_key}",
                             disabled=not bool(suggestion),
                         ):
                             st.session_state["social_post_caption"] = suggestion
