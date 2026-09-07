@@ -4,6 +4,8 @@ import traceback
 import io
 import math
 import base64
+import html
+import json
 import re
 import uuid
 
@@ -769,6 +771,44 @@ def extract_primary_suggestion(text):
     return ""
 
 
+def render_copy_button(label, text, key, disabled=False):
+    """Render a browser-side clipboard button without rerunning the app."""
+    escaped_label = html.escape(label, quote=True)
+    serialized_text = json.dumps(text or "").replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    disabled_attribute = " disabled" if disabled else ""
+    components.html(
+        f"""
+        <button id="{html.escape(key, quote=True)}"{disabled_attribute}
+                style="width:100%; min-height:2.4rem; padding:0.25rem 0.75rem;
+                       border:1px solid #c8cdd4; border-radius:0.5rem;
+                       background:#fff; color:#262730; cursor:pointer; font-size:0.875rem;">
+            {escaped_label}
+        </button>
+        <script>
+        const button = document.getElementById({json.dumps(key)});
+        const value = {serialized_text};
+        button.addEventListener("click", async () => {{
+            try {{
+                await navigator.clipboard.writeText(value);
+                button.textContent = "Copied!";
+                setTimeout(() => button.textContent = {json.dumps(label)}, 1500);
+            }} catch (error) {{
+                const area = document.createElement("textarea");
+                area.value = value;
+                document.body.appendChild(area);
+                area.select();
+                document.execCommand("copy");
+                area.remove();
+                button.textContent = "Copied!";
+                setTimeout(() => button.textContent = {json.dumps(label)}, 1500);
+            }}
+        }});
+        </script>
+        """,
+        height=44,
+    )
+
+
 def build_assistant_user_prompt(user_input):
     """Build a simple prompt so the assistant can recommend creative ideas."""
     return (
@@ -1318,8 +1358,15 @@ installButton.addEventListener('click', async () => {
                         suggestion = extract_primary_suggestion(msg["content"])
                         msg["suggestion"] = suggestion
                     suggestion = msg.get("suggestion", "")
-                    action_cols = st.columns(4)
+                    action_cols = st.columns(5)
                     with action_cols[0]:
+                        render_copy_button(
+                            "Copy to clipboard",
+                            suggestion,
+                            f"copy_suggestion_{message_key}",
+                            disabled=not bool(suggestion),
+                        )
+                    with action_cols[1]:
                         if st.button(
                             "Apply suggested prompt",
                             key=f"apply_suggested_prompt_{message_key}",
@@ -1328,25 +1375,25 @@ installButton.addEventListener('click', async () => {
                             st.session_state["prompt_topic"] = suggestion
                             st.session_state["agent_last_status"] = "Applied suggestion to 3D prompt ideas topic."
                             st.rerun()
-                    with action_cols[1]:
+                    with action_cols[2]:
                         if st.button(
-                            "Copy to image prompt",
+                            "Use as image prompt",
                             key=f"copy_image_prompt_{message_key}",
                             disabled=not bool(suggestion),
                         ):
                             st.session_state["image_prompt_value"] = suggestion
                             st.session_state["agent_last_status"] = "Copied suggestion to image prompt field."
                             st.rerun()
-                    with action_cols[2]:
+                    with action_cols[3]:
                         if st.button(
-                            "Copy to blog topic",
+                            "Use as blog topic",
                             key=f"copy_blog_topic_{message_key}",
                             disabled=not bool(suggestion),
                         ):
                             st.session_state["blog_question"] = suggestion
                             st.session_state["agent_last_status"] = "Copied suggestion to blog draft topic."
                             st.rerun()
-                    with action_cols[3]:
+                    with action_cols[4]:
                         if st.button(
                             "Prepare social caption",
                             key=f"prepare_social_caption_{message_key}",
