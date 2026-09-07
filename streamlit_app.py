@@ -623,6 +623,38 @@ def read_binary_file(path):
         return f.read()
 
 
+def edit_video_with_moviepy(input_path, output_path, start_time, end_time, speed):
+        """Trim and optionally change the playback speed of a video with MoviePy."""
+        from moviepy import VideoFileClip
+
+        clip = VideoFileClip(input_path)
+        edited_clip = None
+        try:
+            if hasattr(clip, "subclipped"):
+                edited_clip = clip.subclipped(start_time, end_time)
+            else:
+                edited_clip = clip.subclip(start_time, end_time)
+
+            if speed != 1.0:
+                if hasattr(edited_clip, "with_speed_scaled"):
+                    edited_clip = edited_clip.with_speed_scaled(factor=speed)
+                else:
+                    from moviepy.video.fx import speedx
+
+                    edited_clip = edited_clip.fx(speedx, factor=speed)
+
+            edited_clip.write_videofile(
+                output_path,
+                codec="libx264",
+                audio_codec="aac",
+                logger=None,
+            )
+        finally:
+            if edited_clip is not None:
+                edited_clip.close()
+            clip.close()
+
+
 def normalize_hashtags(raw_value):
     """Normalize comma/space separated tags into unique hashtag tokens."""
     tags = []
@@ -864,7 +896,7 @@ installButton.addEventListener('click', async () => {
 
     st.markdown(install_button_html, unsafe_allow_html=True)
 
-    tab_details, tab_prompt, tab_chat, tab1, tab2, tab3, tab4_obj, tab4_stl, tab_blog, tab_social, tab_links = st.tabs([
+    tab_details, tab_prompt, tab_chat, tab1, tab2, tab3, tab4_obj, tab4_stl, tab_blog, tab_video, tab_social, tab_links = st.tabs([
         "Details",
         "3D Model Prompt Ideas (Cohere)",
         "AI Chat Assistant",
@@ -874,6 +906,7 @@ installButton.addEventListener('click', async () => {
         "Convert to OBJ",
         "Convert to STL",
         "Blog Writer (Cohere)",
+        "Video Editor (MoviePy)",
         "Social Share",
         "Links",
     ])
@@ -1584,6 +1617,77 @@ installButton.addEventListener('click', async () => {
 - **AI** — ChatGPT, Claude
 """)
 
+    with tab_video:
+        st.subheader("Video Editor (MoviePy)")
+        st.caption(
+            "Trim or change playback speed before sharing. Processing runs only when you click "
+            "Edit Video, so it does not consume resources while you browse the tab."
+        )
+        uploaded_video = st.file_uploader(
+            "Upload a video",
+            type=["mp4", "mov", "avi", "mkv", "webm"],
+            key="moviepy_video_upload",
+        )
+        if uploaded_video:
+            suffix = os.path.splitext(uploaded_video.name)[1].lower() or ".mp4"
+            source_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+            source_file.write(uploaded_video.getvalue())
+            source_file.close()
+            try:
+                from moviepy import VideoFileClip
+
+                source_clip = VideoFileClip(source_file.name)
+                duration = max(float(source_clip.duration or 0), 0.1)
+                source_clip.close()
+            except Exception as exc:
+                st.error(f"MoviePy could not read this video: {exc}")
+            else:
+                st.video(uploaded_video.getvalue())
+                st.caption(f"Duration: {duration:.1f} seconds")
+                edit_cols = st.columns(3)
+                with edit_cols[0]:
+                    start_time = st.number_input(
+                        "Start (seconds)", min_value=0.0, max_value=duration, value=0.0, step=0.5,
+                        key="moviepy_start_time",
+                    )
+                with edit_cols[1]:
+                    end_time = st.number_input(
+                        "End (seconds)", min_value=0.1, max_value=duration, value=float(duration),
+                        step=0.5, key="moviepy_end_time",
+                    )
+                with edit_cols[2]:
+                    speed = st.selectbox(
+                        "Playback speed", [0.5, 1.0, 1.5, 2.0], index=1, key="moviepy_speed",
+                    )
+
+                if st.button("Edit Video", type="primary", key="moviepy_edit_video"):
+                    if end_time <= start_time:
+                        st.error("End time must be greater than start time.")
+                    else:
+                        edited_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+                        edited_file.close()
+                        try:
+                            with st.spinner("Editing video with MoviePy..."):
+                                edit_video_with_moviepy(
+                                    source_file.name, edited_file.name, start_time, end_time, speed
+                                )
+                            st.session_state["edited_video_path"] = edited_file.name
+                            st.success("Edited video is ready in the Social Share tab.")
+                        except Exception as exc:
+                            st.error(f"Video editing failed: {exc}")
+
+        edited_video_path = st.session_state.get("edited_video_path")
+        edited_video_bytes = read_binary_file(edited_video_path)
+        if edited_video_bytes:
+            st.video(edited_video_bytes)
+            st.download_button(
+                "Download Edited Video",
+                data=edited_video_bytes,
+                file_name="edited-video.mp4",
+                mime="video/mp4",
+                key="download_edited_video",
+            )
+
     with tab_social:
         st.subheader("Social Share")
         st.caption("Prepare a generated image or 3D preview for social posting. Direct TikTok posting is not built in yet.")
@@ -1603,16 +1707,26 @@ installButton.addEventListener('click', async () => {
             asset_options.append(("Generated image", image_bytes, "generated-image", image_ext, image_mime))
         if snapshot_png:
             asset_options.append(("3D model preview", snapshot_png, "3d-model-preview", ".png", "image/png"))
+        edited_video_path = st.session_state.get("edited_video_path")
+        edited_video_bytes = read_binary_file(edited_video_path)
+        if edited_video_bytes:
+            asset_options.append(("Edited video", edited_video_bytes, "edited-video", ".mp4", "video/mp4"))
 
         if not asset_options:
-            st.info("Generate an image or a 3D model preview first, then return here to prepare a social post.")
+            st.info(
+                "Generate an image, a 3D model preview, or an edited video first, then return here "
+                "to prepare a social post."
+            )
         else:
             asset_labels = [label for label, _, _, _, _ in asset_options]
             selected_label = st.radio("Content to prepare", asset_labels, horizontal=True)
             selected_asset = next((option for option in asset_options if option[0] == selected_label), asset_options[0])
             _, selected_bytes, default_name, default_extension, default_mime = selected_asset
 
-            st.image(selected_bytes, caption=selected_label, use_container_width=True)
+            if default_mime.startswith("video/"):
+                st.video(selected_bytes)
+            else:
+                st.image(selected_bytes, caption=selected_label, use_container_width=True)
 
             post_format = st.selectbox(
                 "Post format",
@@ -1669,7 +1783,7 @@ installButton.addEventListener('click', async () => {
             export_cols = st.columns(2)
             with export_cols[0]:
                 st.download_button(
-                    "Download Social Image",
+                    "Download Social Asset",
                     data=selected_bytes,
                     file_name=f"{safe_name_social}{default_extension}",
                     mime=default_mime,
