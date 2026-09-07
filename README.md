@@ -26,15 +26,11 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-**Important:** Never commit API keys to version control. Set environment variables in a local `.env` file (ensure `.env` is in `.gitignore`). **Do not commit the `.env` file.**
+**Important:** Never commit API keys to version control. Image and 3D model generation keys are entered through password fields in the app for the active browser session and are not read from backend configuration. **Do not commit API keys or a `.env` file.**
 
-Example `.env` file (required for AI agent/chat, blog writer, and prompt ideas):
+Example `.env` file (required only for the Cohere AI agent/chat, blog writer, and prompt ideas):
 
 ```bash
-OPENAI_API_KEY=your_openai_key
-STABILITY_KEY=your_stability_key
-HF_TOKEN=your_huggingface_token
-TRIPO3D_API_KEY=your_tripo3d_key
 COHERE_API_KEY=your_cohere_key
 ```
 
@@ -53,7 +49,7 @@ streamlit run streamlit_app.py
 
 ## Streamlit Cloud
 
-Use `streamlit_app.py` as the app entry point and add API keys in Streamlit secrets or environment variables. The repo is structured so it can be connected directly to Streamlit Cloud.
+Use `streamlit_app.py` as the app entry point. Demo users supply their own OpenAI, Hugging Face, Stability AI, or Tripo3D credentials in the generation tabs; configure only `COHERE_API_KEY` in Streamlit secrets or environment variables when enabling Cohere features. The repo is structured so it can be connected directly to Streamlit Cloud.
 
 MoviePy processing is local to the Streamlit instance and runs only after an edit is
 requested. Video editing uses CPU and temporary disk space, so large or long videos
