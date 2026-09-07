@@ -1,6 +1,5 @@
 import os
 import tempfile
-import time
 import traceback
 import io
 import math
@@ -991,21 +990,13 @@ installButton.addEventListener('click', async () => {
         st.caption("Remember to check API usage!")
         if "image_prompt_value" not in st.session_state:
             st.session_state["image_prompt_value"] = "One Single Stylized simple multicoloured Common Holly performing Heterophylly whilst presented on a sturdy figurine base suitable for 3D printing."
-        mode = st.selectbox("Select Image Generation Mode", ["Fast_Mode_OA", "Slow_Mode_SDXL"], index=0, key="image_mode_select")
-        if mode == "Fast_Mode_OA":
-            image_api_key = st.text_input(
-                "OpenAI API key",
-                type="password",
-                key="image_openai_api_key",
-                help="Used only for this browser session and not saved to this app's configuration.",
-            )
-        else:
-            image_api_key = st.text_input(
-                "Hugging Face API token",
-                type="password",
-                key="image_huggingface_api_key",
-                help="Used only for this browser session and not saved to this app's configuration.",
-            )
+        mode = "Fast_Mode_OA"
+        image_api_key = st.text_input(
+            "OpenAI API key",
+            type="password",
+            key="image_openai_api_key",
+            help="Used only for this browser session and not saved to this app's configuration.",
+        )
         prompt = st.text_area(
             "Image prompt",
             value=st.session_state["image_prompt_value"],
@@ -1016,8 +1007,6 @@ installButton.addEventListener('click', async () => {
             with st.spinner("Generating image..."):
                 image_path = (
                     generate_image_openai(prompt, image_api_key)
-                    if mode == "Fast_Mode_OA"
-                    else generate_image_sdxl(prompt, image_api_key)
                 )
                 if image_path:
                     st.session_state["image_path"] = image_path
@@ -1029,21 +1018,13 @@ installButton.addEventListener('click', async () => {
 
     with tab2:
         st.caption("Remember to check API usage!")
-        mode = st.selectbox("Select 3D Model Generation Mode", ["Medium_Quality_Mode_STA", "High_Quality_Mode_TRO"], index=0, key="model_mode_select")
-        if mode == "Medium_Quality_Mode_STA":
-            model_api_key = st.text_input(
-                "Stability AI API key",
-                type="password",
-                key="model_stability_api_key",
-                help="Used only for this browser session and not saved to this app's configuration.",
-            )
-        else:
-            model_api_key = st.text_input(
-                "Tripo3D API key",
-                type="password",
-                key="model_tripo_api_key",
-                help="Used only for this browser session and not saved to this app's configuration.",
-            )
+        mode = "Medium_Quality_Mode_STA"
+        model_api_key = st.text_input(
+            "Stability AI API key",
+            type="password",
+            key="model_stability_api_key",
+            help="Used only for this browser session and not saved to this app's configuration.",
+        )
         image_path = st.session_state.get("image_path")
 
         uploaded = st.file_uploader("Upload an image (optional)", type=["png", "jpg", "jpeg"], key="model_image_upload")
@@ -1089,26 +1070,6 @@ installButton.addEventListener('click', async () => {
                                 )
                         else:
                             st.session_state["last_model_generation_status"] = "3D model generation failed."
-            else:
-                filename_glb = st.text_input("GLB filename (no extension)", value="model", key="filename_glb_tab2_tripo")
-                if st.button("Generate 3D Model", key="generate_3d_tripo"):
-                    with st.spinner("Generating 3D model..."):
-                        glb_path = generate_3d_model_tripo(image_path, model_api_key)
-                        if glb_path:
-                            persist_glb_in_session(glb_path)
-                            st.session_state["last_model_generation_status"] = "3D model generated successfully."
-                            st.success("3D model generated!")
-                            safe_name = sanitize_filename(filename_glb) or "model"
-                            with open(glb_path, "rb") as f:
-                                st.download_button(
-                                    "Download GLB",
-                                    f,
-                                    file_name=f"{safe_name}.glb",
-                                    mime="model/gltf-binary",
-                                )
-                        else:
-                            st.session_state["last_model_generation_status"] = "3D model generation failed."
-
             current_glb_path = get_session_glb_path()
             if current_glb_path and os.path.exists(current_glb_path):
                 snapshot_png = st.session_state.get("glb_preview_png")
@@ -2013,8 +1974,7 @@ def _friendly_openai_image_error(exc):
     if "billing_hard_limit_reached" in lowered or "billing hard limit has been reached" in lowered:
         return (
             "OpenAI billing limit reached for the active key/project. "
-            "Use a funded key, then enter it above and try again. "
-            "You can also switch to Slow_Mode_SDXL as a fallback."
+            "Use a funded key, then enter it above and try again."
         )
 
     if "invalid_api_key" in lowered or "incorrect api key" in lowered:
@@ -2053,33 +2013,6 @@ def generate_image_openai(prompt: str, api_key: str) -> str:
         return tmp.name
     except Exception as e:
         st.error(_friendly_openai_image_error(e))
-        traceback.print_exc()
-        return ""
-
-
-def generate_image_sdxl(prompt: str, api_key: str) -> str:
-    try:
-        if not api_key:
-            raise ValueError("Enter a Hugging Face API token to generate an image.")
-        hf_token = api_key
-
-        api_url = "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0"
-        headers = {
-            "Authorization": f"Bearer {hf_token}",
-            "Accept": "image/png",
-        }
-        payload = {"inputs": prompt}
-
-        response = requests.post(api_url, headers=headers, json=payload, timeout=180)
-        if response.status_code != 200:
-            raise Exception(f"Hugging Face SDXL request failed ({response.status_code}): {response.text}")
-
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-        tmp.write(response.content)
-        tmp.close()
-        return tmp.name
-    except Exception as e:
-        st.error(f"SDXL image generation failed: {e}")
         traceback.print_exc()
         return ""
 
@@ -2134,98 +2067,6 @@ def generate_3d_model_stability(image_path, texture_resolution, foreground_ratio
         return tmp.name
     except Exception as e:
         st.error(f"3D generation failed: {e}")
-        traceback.print_exc()
-        return ""
-
-
-def upload_image_to_tripo3d(image_path: str, api_key: str) -> str:
-    upload_url = "https://api.tripo3d.ai/v2/openapi/upload/sts"
-    headers = {"Authorization": f"Bearer {api_key}"}
-
-    file_extension = os.path.splitext(image_path)[1].lstrip('.').lower()
-    mime_type = f"image/{file_extension}" if file_extension in ["jpeg", "jpg", "png"] else "application/octet-stream"
-
-    with open(image_path, "rb") as image_file:
-        files = {"file": (os.path.basename(image_path), image_file, mime_type)}
-        response = requests.post(upload_url, headers=headers, files=files, timeout=60)
-
-    response.raise_for_status()
-    response_json = response.json()
-    file_token = response_json.get("data", {}).get("image_token")
-    if not file_token:
-        raise Exception(f"Could not find image_token in upload response: {response_json}")
-    return file_token
-
-
-def create_tripo3d_task(file_token: str, image_path: str, api_key: str) -> str:
-    generation_url = "https://api.tripo3d.ai/v2/openapi/task"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
-    }
-
-    file_extension = os.path.splitext(image_path)[1].lstrip('.').lower()
-    data = {
-        "type": "image_to_model",
-        "file": {
-            "type": file_extension,
-            "file_token": file_token,
-        },
-    }
-
-    response = requests.post(generation_url, headers=headers, json=data, timeout=60)
-    response.raise_for_status()
-    response_json = response.json()
-    task_id = response_json.get("data", {}).get("task_id")
-    if not task_id:
-        raise Exception(f"Could not find task_id in task response: {response_json}")
-    return task_id
-
-
-def poll_tripo3d_task(task_id: str, api_key: str, timeout_seconds: int = 300, interval_seconds: int = 5) -> dict:
-    status_url = f"https://api.tripo3d.ai/v2/openapi/task/{task_id}"
-    headers = {"Authorization": f"Bearer {api_key}"}
-
-    start_time = time.time()
-    while time.time() - start_time < timeout_seconds:
-        response = requests.get(status_url, headers=headers, timeout=30)
-        response.raise_for_status()
-        payload = response.json()
-
-        status = payload.get("data", {}).get("status", "").lower()
-        if status in {"succeeded", "success", "completed", "done"}:
-            return payload
-        if status in {"failed", "error", "cancelled"}:
-            raise Exception(f"Tripo3D task failed: {payload}")
-
-        time.sleep(interval_seconds)
-
-    raise TimeoutError("Timed out waiting for Tripo3D task completion")
-
-
-def generate_3d_model_tripo(image_path, api_key):
-    try:
-        if not api_key:
-            raise ValueError("Enter a Tripo3D API key to generate a 3D model.")
-
-        file_token = upload_image_to_tripo3d(image_path, api_key)
-        task_id = create_tripo3d_task(file_token, image_path, api_key)
-        final_payload = poll_tripo3d_task(task_id, api_key)
-
-        download_url = final_payload.get("data", {}).get("output", {}).get("pbr_model")
-        if not download_url:
-            raise Exception(f"Failed to retrieve download URL from Tripo3D response: {final_payload}")
-
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".glb")
-        with requests.get(download_url, stream=True, timeout=120) as r:
-            r.raise_for_status()
-            for chunk in r.iter_content(chunk_size=8192):
-                tmp.write(chunk)
-        tmp.close()
-
-        return tmp.name
-    except Exception as e:
-        st.error(f"Tripo3D model generation failed: {e}")
         traceback.print_exc()
         return ""
 
