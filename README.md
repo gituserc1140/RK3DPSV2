@@ -27,7 +27,6 @@ RKstudio3Dps is a Streamlit workspace for taking an idea from AI-assisted concep
 - Prepare generated images, 3D model previews, and edited videos for download and social posts
 - Build social captions with post formats, hashtags, and calls to action
 - Open tools for ecommerce and promotion, including Shopify, TikTok Shop, Printful, Etsy, Canva, TikTok, Medium, ChatGPT, and Claude
-- Add branding/watermark attribution to exported images, videos, and 3D files to help credit the original creator (see below)
 
 ### App experience
 
@@ -54,24 +53,6 @@ Start the app:
 ```bash
 streamlit run streamlit_app.py
 ```
-
-## Branding & Watermarking
-
-The **🔖 Branding & Watermark Settings** panel (at the top of the app) lets you add
-attribution to your exports:
-
-- **Images** get a semi-transparent text overlay baked into the generated image before
-  preview and download.
-- **Edited videos** get a semi-transparent text overlay composited over the full clip.
-- **3D exports (GLB/OBJ/STL)** get non-destructive attribution embedded as file
-  metadata (GLB `asset.generator`/`extras`), an OBJ comment header, or the unused
-  80-byte STL header — so they are traceable even without a visible mark.
-
-Watermark text, opacity, position, and per-output-type toggles are all configurable,
-and watermarking can be turned off entirely for personal use. This is not a copy
-protection mechanism — a watermark can be cropped or stripped — but it does mark
-content as originating from this app/community by default and provides basic
-attribution/provenance for shared content.
 
 ## Troubleshooting OpenAI Image Generation
 

@@ -6,5 +6,4 @@ requests>=2.32,<3
 python-dotenv>=1.0,<2
 plotly>=6,<7
 trimesh>=4.12,<5
-pygltflib>=1.16,<2
 moviepy>=2.2,<3
