@@ -1685,6 +1685,7 @@ installButton.addEventListener('click', async () => {
 - **3D Print Art** — Cults3D, Tinkercad
 - **Ecommerce** — Shopify, TikTok Shop, Printful, Etsy
 - **Social Editing** — Canva, TikTok
+- **Video Editing** — MoviePy
 - **Social Sharing** — export generated images or 3D previews for posting
 - **Blog** — Medium
 - **AI** — ChatGPT, Claude
