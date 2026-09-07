@@ -992,6 +992,20 @@ installButton.addEventListener('click', async () => {
         if "image_prompt_value" not in st.session_state:
             st.session_state["image_prompt_value"] = "One Single Stylized simple multicoloured Common Holly performing Heterophylly whilst presented on a sturdy figurine base suitable for 3D printing."
         mode = st.selectbox("Select Image Generation Mode", ["Fast_Mode_OA", "Slow_Mode_SDXL"], index=0, key="image_mode_select")
+        if mode == "Fast_Mode_OA":
+            image_api_key = st.text_input(
+                "OpenAI API key",
+                type="password",
+                key="image_openai_api_key",
+                help="Used only for this browser session and not saved to this app's configuration.",
+            )
+        else:
+            image_api_key = st.text_input(
+                "Hugging Face API token",
+                type="password",
+                key="image_huggingface_api_key",
+                help="Used only for this browser session and not saved to this app's configuration.",
+            )
         prompt = st.text_area(
             "Image prompt",
             value=st.session_state["image_prompt_value"],
@@ -1000,7 +1014,11 @@ installButton.addEventListener('click', async () => {
 
         if st.button("Generate Image"):
             with st.spinner("Generating image..."):
-                image_path = generate_image_openai(prompt) if mode == "Fast_Mode_OA" else generate_image_sdxl(prompt)
+                image_path = (
+                    generate_image_openai(prompt, image_api_key)
+                    if mode == "Fast_Mode_OA"
+                    else generate_image_sdxl(prompt, image_api_key)
+                )
                 if image_path:
                     st.session_state["image_path"] = image_path
                     st.session_state["last_image_generation_status"] = "Image generated successfully."
@@ -1012,6 +1030,20 @@ installButton.addEventListener('click', async () => {
     with tab2:
         st.caption("Remember to check API usage!")
         mode = st.selectbox("Select 3D Model Generation Mode", ["Medium_Quality_Mode_STA", "High_Quality_Mode_TRO"], index=0, key="model_mode_select")
+        if mode == "Medium_Quality_Mode_STA":
+            model_api_key = st.text_input(
+                "Stability AI API key",
+                type="password",
+                key="model_stability_api_key",
+                help="Used only for this browser session and not saved to this app's configuration.",
+            )
+        else:
+            model_api_key = st.text_input(
+                "Tripo3D API key",
+                type="password",
+                key="model_tripo_api_key",
+                help="Used only for this browser session and not saved to this app's configuration.",
+            )
         image_path = st.session_state.get("image_path")
 
         uploaded = st.file_uploader("Upload an image (optional)", type=["png", "jpg", "jpeg"], key="model_image_upload")
@@ -1041,6 +1073,7 @@ installButton.addEventListener('click', async () => {
                             foreground_ratio,
                             remesh,
                             vertex_count,
+                            model_api_key,
                         )
                         if glb_path:
                             persist_glb_in_session(glb_path)
@@ -1060,7 +1093,7 @@ installButton.addEventListener('click', async () => {
                 filename_glb = st.text_input("GLB filename (no extension)", value="model", key="filename_glb_tab2_tripo")
                 if st.button("Generate 3D Model", key="generate_3d_tripo"):
                     with st.spinner("Generating 3D model..."):
-                        glb_path = generate_3d_model_tripo(image_path)
+                        glb_path = generate_3d_model_tripo(image_path, model_api_key)
                         if glb_path:
                             persist_glb_in_session(glb_path)
                             st.session_state["last_model_generation_status"] = "3D model generated successfully."
@@ -1964,12 +1997,11 @@ installButton.addEventListener('click', async () => {
                     st.markdown(f"[{label}]({url})")
 
 
-def get_openai_client():
+def get_openai_client(api_key):
     from openai import OpenAI
 
-    api_key = get_api_key("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("OPENAI_API_KEY not found in environment or secrets")
+        raise ValueError("Enter an OpenAI API key to generate an image.")
     return OpenAI(api_key=api_key)
 
 
@@ -1981,25 +2013,21 @@ def _friendly_openai_image_error(exc):
     if "billing_hard_limit_reached" in lowered or "billing hard limit has been reached" in lowered:
         return (
             "OpenAI billing limit reached for the active key/project. "
-            "Use a funded key, then update OPENAI_API_KEY in your .env or Streamlit secrets and try again. "
+            "Use a funded key, then enter it above and try again. "
             "You can also switch to Slow_Mode_SDXL as a fallback."
         )
 
     if "invalid_api_key" in lowered or "incorrect api key" in lowered:
         return (
-            "OpenAI rejected the API key. Update OPENAI_API_KEY in your .env or Streamlit secrets, "
-            "then retry image generation."
+            "OpenAI rejected the API key. Check the key entered above, then retry image generation."
         )
 
     return f"Image generation failed: {text}"
 
 
-def generate_image_openai(prompt: str) -> str:
+def generate_image_openai(prompt: str, api_key: str) -> str:
     try:
-        if not get_api_key("OPENAI_API_KEY"):
-            raise ValueError("OPENAI_API_KEY not found in environment or secrets")
-
-        client = get_openai_client()
+        client = get_openai_client(api_key)
         response = client.images.generate(
             model="gpt-image-1",
             prompt=prompt,
@@ -2029,15 +2057,11 @@ def generate_image_openai(prompt: str) -> str:
         return ""
 
 
-def generate_image_sdxl(prompt: str) -> str:
+def generate_image_sdxl(prompt: str, api_key: str) -> str:
     try:
-        hf_token = (
-            os.environ.get("HF_TOKEN")
-            or os.environ.get("HUGGINGFACE_API_KEY")
-            or os.environ.get("RKStudioHF1")
-        )
-        if not hf_token:
-            raise ValueError("Set HF_TOKEN, HUGGINGFACE_API_KEY, or RKStudioHF1 in your .env for SDXL mode")
+        if not api_key:
+            raise ValueError("Enter a Hugging Face API token to generate an image.")
+        hf_token = api_key
 
         api_url = "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0"
         headers = {
@@ -2060,10 +2084,9 @@ def generate_image_sdxl(prompt: str) -> str:
         return ""
 
 
-def image_to_3d(host, image_path, **kwargs):
-    stability_key = get_api_key("STABILITY_KEY") or get_api_key("STABILITY_API_KEY")
+def image_to_3d(host, image_path, stability_key, **kwargs):
     if not stability_key:
-        raise ValueError("STABILITY_KEY/STABILITY_API_KEY not found in environment or secrets")
+        raise ValueError("Enter a Stability AI API key to generate a 3D model.")
 
     with open(image_path, "rb") as image_file:
         response = requests.post(
@@ -2091,7 +2114,7 @@ def image_to_3d(host, image_path, **kwargs):
     return response.content
 
 
-def generate_3d_model_stability(image_path, texture_resolution, foreground_ratio, remesh, vertex_count):
+def generate_3d_model_stability(image_path, texture_resolution, foreground_ratio, remesh, vertex_count, api_key):
     try:
         host = "https://api.stability.ai/v2beta/3d/stable-fast-3d"
         glb_data = image_to_3d(
@@ -2101,6 +2124,7 @@ def generate_3d_model_stability(image_path, texture_resolution, foreground_ratio
             foreground_ratio=foreground_ratio,
             remesh=remesh,
             vertex_count=vertex_count,
+            stability_key=api_key,
         )
 
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".glb")
@@ -2179,11 +2203,10 @@ def poll_tripo3d_task(task_id: str, api_key: str, timeout_seconds: int = 300, in
     raise TimeoutError("Timed out waiting for Tripo3D task completion")
 
 
-def generate_3d_model_tripo(image_path):
+def generate_3d_model_tripo(image_path, api_key):
     try:
-        api_key = os.environ.get("TRIPO3D_API_KEY") or os.environ.get("RKStudioTripo")
         if not api_key:
-            raise ValueError("Set TRIPO3D_API_KEY or RKStudioTripo in your .env")
+            raise ValueError("Enter a Tripo3D API key to generate a 3D model.")
 
         file_token = upload_image_to_tripo3d(image_path, api_key)
         task_id = create_tripo3d_task(file_token, image_path, api_key)
