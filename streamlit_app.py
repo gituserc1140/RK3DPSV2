@@ -1617,78 +1617,78 @@ installButton.addEventListener('click', async () => {
 - **AI** — ChatGPT, Claude
 """)
 
-   with tab_video:
-       st.subheader("Video Editor (MoviePy)")
-       st.caption(
-           "Trim or change playback speed before sharing. Processing runs only when you click "
-           "Edit Video, so it does not consume resources while you browse the tab."
-       )
-       uploaded_video = st.file_uploader(
-           "Upload a video",
-           type=["mp4", "mov", "avi", "mkv", "webm"],
-           key="moviepy_video_upload",
-       )
-       if uploaded_video:
-           suffix = os.path.splitext(uploaded_video.name)[1].lower() or ".mp4"
-           source_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-           source_file.write(uploaded_video.getvalue())
-           source_file.close()
-           try:
-               from moviepy import VideoFileClip
+    with tab_video:
+        st.subheader("Video Editor (MoviePy)")
+        st.caption(
+            "Trim or change playback speed before sharing. Processing runs only when you click "
+            "Edit Video, so it does not consume resources while you browse the tab."
+        )
+        uploaded_video = st.file_uploader(
+            "Upload a video",
+            type=["mp4", "mov", "avi", "mkv", "webm"],
+            key="moviepy_video_upload",
+        )
+        if uploaded_video:
+            suffix = os.path.splitext(uploaded_video.name)[1].lower() or ".mp4"
+            source_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+            source_file.write(uploaded_video.getvalue())
+            source_file.close()
+            try:
+                from moviepy import VideoFileClip
 
-               source_clip = VideoFileClip(source_file.name)
-               duration = max(float(source_clip.duration or 0), 0.1)
-               source_clip.close()
-           except Exception as exc:
-               st.error(f"MoviePy could not read this video: {exc}")
-           else:
-               st.video(uploaded_video.getvalue())
-               st.caption(f"Duration: {duration:.1f} seconds")
-               edit_cols = st.columns(3)
-               with edit_cols[0]:
-                   start_time = st.number_input(
-                       "Start (seconds)", min_value=0.0, max_value=duration, value=0.0, step=0.5,
-                       key="moviepy_start_time",
-                   )
-               with edit_cols[1]:
-                   end_time = st.number_input(
-                       "End (seconds)", min_value=0.1, max_value=duration, value=float(duration),
-                       step=0.5, key="moviepy_end_time",
-                   )
-               with edit_cols[2]:
-                   speed = st.selectbox(
-                       "Playback speed", [0.5, 1.0, 1.5, 2.0], index=1, key="moviepy_speed",
-                   )
+                source_clip = VideoFileClip(source_file.name)
+                duration = max(float(source_clip.duration or 0), 0.1)
+                source_clip.close()
+            except Exception as exc:
+                st.error(f"MoviePy could not read this video: {exc}")
+            else:
+                st.video(uploaded_video.getvalue())
+                st.caption(f"Duration: {duration:.1f} seconds")
+                edit_cols = st.columns(3)
+                with edit_cols[0]:
+                    start_time = st.number_input(
+                        "Start (seconds)", min_value=0.0, max_value=duration, value=0.0, step=0.5,
+                        key="moviepy_start_time",
+                    )
+                with edit_cols[1]:
+                    end_time = st.number_input(
+                        "End (seconds)", min_value=0.1, max_value=duration, value=float(duration),
+                        step=0.5, key="moviepy_end_time",
+                    )
+                with edit_cols[2]:
+                    speed = st.selectbox(
+                        "Playback speed", [0.5, 1.0, 1.5, 2.0], index=1, key="moviepy_speed",
+                    )
 
-               if st.button("Edit Video", type="primary", key="moviepy_edit_video"):
-                   if end_time <= start_time:
-                       st.error("End time must be greater than start time.")
-                   else:
-                       edited_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-                       edited_file.close()
-                       try:
-                           with st.spinner("Editing video with MoviePy..."):
-                               edit_video_with_moviepy(
-                                   source_file.name, edited_file.name, start_time, end_time, speed
-                               )
-                           st.session_state["edited_video_path"] = edited_file.name
-                           st.success("Edited video is ready in the Social Share tab.")
-                       except Exception as exc:
-                           st.error(f"Video editing failed: {exc}")
+                if st.button("Edit Video", type="primary", key="moviepy_edit_video"):
+                    if end_time <= start_time:
+                        st.error("End time must be greater than start time.")
+                    else:
+                        edited_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+                        edited_file.close()
+                        try:
+                            with st.spinner("Editing video with MoviePy..."):
+                                edit_video_with_moviepy(
+                                    source_file.name, edited_file.name, start_time, end_time, speed
+                                )
+                            st.session_state["edited_video_path"] = edited_file.name
+                            st.success("Edited video is ready in the Social Share tab.")
+                        except Exception as exc:
+                            st.error(f"Video editing failed: {exc}")
 
-       edited_video_path = st.session_state.get("edited_video_path")
-       edited_video_bytes = read_binary_file(edited_video_path)
-       if edited_video_bytes:
-           st.video(edited_video_bytes)
-           st.download_button(
-               "Download Edited Video",
-               data=edited_video_bytes,
-               file_name="edited-video.mp4",
-               mime="video/mp4",
-               key="download_edited_video",
-           )
+        edited_video_path = st.session_state.get("edited_video_path")
+        edited_video_bytes = read_binary_file(edited_video_path)
+        if edited_video_bytes:
+            st.video(edited_video_bytes)
+            st.download_button(
+                "Download Edited Video",
+                data=edited_video_bytes,
+                file_name="edited-video.mp4",
+                mime="video/mp4",
+                key="download_edited_video",
+            )
 
-   with tab_social:
+    with tab_social:
         st.subheader("Social Share")
         st.caption("Prepare a generated image or 3D preview for social posting. Direct TikTok posting is not built in yet.")
 
@@ -1713,7 +1713,10 @@ installButton.addEventListener('click', async () => {
             asset_options.append(("Edited video", edited_video_bytes, "edited-video", ".mp4", "video/mp4"))
 
         if not asset_options:
-            st.info("Generate an image or a 3D model preview first, then return here to prepare a social post.")
+            st.info(
+                "Generate an image, a 3D model preview, or an edited video first, then return here "
+                "to prepare a social post."
+            )
         else:
             asset_labels = [label for label, _, _, _, _ in asset_options]
             selected_label = st.radio("Content to prepare", asset_labels, horizontal=True)
