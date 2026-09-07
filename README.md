@@ -14,6 +14,7 @@ Streamlit app for turning text prompts into images and then converting those ima
 - One-click agent actions to apply suggestions to image prompts, prompt ideas, blog topics, and social captions
 - Cohere-powered blog writer tab for generating Markdown blog drafts from a question/topic
 - Cohere-powered prompt examples tab for generating reusable prompt ideas from a topic
+- MoviePy video editor tab for trimming and changing playback speed before sharing
 - Social Share tab for preparing generated images or 3D preview snapshots for TikTok-style posting
 - PWA metadata and service worker support
 
@@ -53,3 +54,7 @@ streamlit run streamlit_app.py
 ## Streamlit Cloud
 
 Use `streamlit_app.py` as the app entry point and add API keys in Streamlit secrets or environment variables. The repo is structured so it can be connected directly to Streamlit Cloud.
+
+MoviePy processing is local to the Streamlit instance and runs only after an edit is
+requested. Video editing uses CPU and temporary disk space, so large or long videos
+may be slower or exceed the memory/storage limits of Streamlit Community Cloud.
