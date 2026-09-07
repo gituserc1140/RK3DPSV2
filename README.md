@@ -72,3 +72,7 @@ structured so it can be connected directly to Streamlit Cloud.
 MoviePy processing is local to the Streamlit instance and runs only after an edit is
 requested. Video editing uses CPU and temporary disk space, so large or long videos
 may be slower or exceed the memory/storage limits of Streamlit Community Cloud.
+
+## Attributions 
+
+Attributions to open source technology business providers!
