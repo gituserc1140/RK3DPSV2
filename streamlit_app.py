@@ -45,11 +45,15 @@ def get_api_key(key_name):
         return None
 
 
+_COHERE_SESSION_KEYS = ["cohere_api_key_prompt", "cohere_api_key_chat", "cohere_api_key_blog"]
+
+
 def get_cohere_api_key():
     """Get the session-provided or configured Cohere API key."""
-    session_key = st.session_state.get("cohere_api_key", "").strip()
-    if session_key:
-        return session_key
+    for session_key_name in _COHERE_SESSION_KEYS:
+        session_key = st.session_state.get(session_key_name, "").strip()
+        if session_key:
+            return session_key
 
     candidate_names = [
         "COHERE_API_KEY",
@@ -62,6 +66,16 @@ def get_cohere_api_key():
         if value:
             return value
     return None
+
+
+def render_cohere_api_key_input(session_key_name):
+    """Render the Cohere API key field within the current tab."""
+    st.text_input(
+        "Cohere API key",
+        type="password",
+        key=session_key_name,
+        help="Used only for this browser session and not saved to this app's configuration.",
+    )
 
 
 def get_cohere_response(api_key, user_input, history, model_name, temperature, max_tokens):
@@ -966,15 +980,6 @@ installButton.addEventListener('click', async () => {
 
     st.markdown(install_button_html, unsafe_allow_html=True)
 
-    with st.expander("Cohere API Key", expanded=False):
-        st.text_input(
-            "Cohere API key",
-            type="password",
-            key="cohere_api_key",
-            help="Used only for this browser session and not saved to this app's configuration.",
-        )
-        st.caption("Required for 3D prompt ideas, the AI chat assistant, and the blog writer.")
-
     tab_details, tab_prompt, tab_chat, tab1, tab2, tab3, tab4_obj, tab4_stl, tab_blog, tab_video, tab_social, tab_links = st.tabs([
         "Details",
         "3D Model Prompt Ideas (Cohere)",
@@ -1220,6 +1225,7 @@ installButton.addEventListener('click', async () => {
             """,
             unsafe_allow_html=True,
         )
+        render_cohere_api_key_input("cohere_api_key_chat")
         cohere_api_key = get_cohere_api_key()
         if cohere_api_key:
             st.success("Cohere key detected. Assistant is ready.")
@@ -1422,6 +1428,7 @@ installButton.addEventListener('click', async () => {
         st.subheader("Cohere Blog Writer")
         st.caption("Ask Cohere a question and generate a structured blog draft in Markdown.")
 
+        render_cohere_api_key_input("cohere_api_key_blog")
         cohere_api_key = get_cohere_api_key()
         if cohere_api_key:
             st.success("Cohere key detected. Blog writer is ready.")
@@ -1519,6 +1526,7 @@ installButton.addEventListener('click', async () => {
         st.subheader("3D Image Prompt Ideas (Cohere)")
         st.caption("Enter a topic and a visual style to generate 3D image prompt ideas.")
 
+        render_cohere_api_key_input("cohere_api_key_prompt")
         cohere_api_key = get_cohere_api_key()
         if cohere_api_key:
             st.success("Cohere key detected. Prompt ideas are ready.")
