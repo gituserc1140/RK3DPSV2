@@ -46,7 +46,11 @@ def get_api_key(key_name):
 
 
 def get_cohere_api_key():
-    """Get Cohere API key from common env/secret variable names."""
+    """Get the session-provided or configured Cohere API key."""
+    session_key = st.session_state.get("cohere_api_key", "").strip()
+    if session_key:
+        return session_key
+
     candidate_names = [
         "COHERE_API_KEY",
         "COHERE_KEY",
@@ -962,6 +966,15 @@ installButton.addEventListener('click', async () => {
 
     st.markdown(install_button_html, unsafe_allow_html=True)
 
+    with st.expander("Cohere API Key", expanded=False):
+        st.text_input(
+            "Cohere API key",
+            type="password",
+            key="cohere_api_key",
+            help="Used only for this browser session and not saved to this app's configuration.",
+        )
+        st.caption("Required for 3D prompt ideas, the AI chat assistant, and the blog writer.")
+
     tab_details, tab_prompt, tab_chat, tab1, tab2, tab3, tab4_obj, tab4_stl, tab_blog, tab_video, tab_social, tab_links = st.tabs([
         "Details",
         "3D Model Prompt Ideas (Cohere)",
@@ -1211,7 +1224,7 @@ installButton.addEventListener('click', async () => {
         if cohere_api_key:
             st.success("Cohere key detected. Assistant is ready.")
         else:
-            st.warning("Cohere key not found in .env or Streamlit secrets.")
+            st.warning("Enter a Cohere API key above, or configure one in .env or Streamlit secrets.")
 
         if "chat_history" not in st.session_state:
             st.session_state["chat_history"] = []
@@ -1279,7 +1292,7 @@ installButton.addEventListener('click', async () => {
             if not user_input.strip():
                 st.info("Type a prompt first.")
             elif not cohere_api_key:
-                st.error("Set a Cohere API key in .env (COHERE_API_KEY is recommended).")
+                st.error("Enter a Cohere API key above to use the assistant.")
             else:
                 try:
                     history = st.session_state["chat_history"]
@@ -1413,7 +1426,7 @@ installButton.addEventListener('click', async () => {
         if cohere_api_key:
             st.success("Cohere key detected. Blog writer is ready.")
         else:
-            st.warning("Cohere key not found in .env or Streamlit secrets.")
+            st.warning("Enter a Cohere API key above, or configure one in .env or Streamlit secrets.")
 
         if "blog_question" not in st.session_state:
             st.session_state["blog_question"] = "How can small studios use AI to speed up 3D concept workflows?"
@@ -1454,7 +1467,7 @@ installButton.addEventListener('click', async () => {
             if not st.session_state["blog_question"].strip():
                 st.info("Add a question or topic first.")
             elif not cohere_api_key:
-                st.error("Set a Cohere API key in .env (COHERE_API_KEY is recommended).")
+                st.error("Enter a Cohere API key above to generate a blog draft.")
             else:
                 try:
                     include_outline = "yes" if st.session_state.get("blog_include_outline") else "no"
@@ -1510,7 +1523,7 @@ installButton.addEventListener('click', async () => {
         if cohere_api_key:
             st.success("Cohere key detected. Prompt ideas are ready.")
         else:
-            st.warning("Cohere key not found in .env or Streamlit secrets.")
+            st.warning("Enter a Cohere API key above, or configure one in .env or Streamlit secrets.")
 
         _STYLE_PRESETS = {
             "As Simple As Possible": (
@@ -1587,7 +1600,7 @@ installButton.addEventListener('click', async () => {
             if not st.session_state["prompt_topic"].strip():
                 st.info("Add a topic first.")
             elif not cohere_api_key:
-                st.error("Set a Cohere API key in .env (COHERE_API_KEY is recommended).")
+                st.error("Enter a Cohere API key above to generate prompt ideas.")
             else:
                 try:
                     chosen_preset = st.session_state.get("prompt_style_preset", "Simple & Cartoony")

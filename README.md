@@ -42,7 +42,9 @@ pip install -r requirements.txt
 
 **Important:** Never commit API keys to version control. Image and 3D model generation keys are entered through password fields in the app for the active browser session and are not read from backend configuration. **Do not commit API keys or a `.env` file.**
 
-Example `.env` file (required only for the Cohere AI agent/chat, blog writer, and prompt ideas):
+For the Cohere AI chat, blog writer, and prompt ideas, users can enter a key in the
+app's **Cohere API Key** panel. Alternatively, configure it with an environment
+variable or Streamlit secret:
 
 ```bash
 COHERE_API_KEY=your_cohere_key
@@ -62,7 +64,10 @@ streamlit run streamlit_app.py
 
 ## Streamlit Cloud
 
-Use `streamlit_app.py` as the app entry point. Demo users supply their own OpenAI or Stability AI credentials in the generation tabs; configure only `COHERE_API_KEY` in Streamlit secrets or environment variables when enabling Cohere features. The repo is structured so it can be connected directly to Streamlit Cloud.
+Use `streamlit_app.py` as the app entry point. Demo users supply their own OpenAI,
+Stability AI, and Cohere credentials in the app; Cohere can also be configured with
+`COHERE_API_KEY` in Streamlit secrets or environment variables. The repo is
+structured so it can be connected directly to Streamlit Cloud.
 
 MoviePy processing is local to the Streamlit instance and runs only after an edit is
 requested. Video editing uses CPU and temporary disk space, so large or long videos
