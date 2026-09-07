@@ -21,16 +21,6 @@ from PIL import Image, ImageDraw
 
 load_dotenv()
 
-DEFAULT_WATERMARK_TEXT = "Made with RKstudio3Dps"
-
-WATERMARK_POSITIONS = {
-    "Top-left": ("left", "top"),
-    "Top-right": ("right", "top"),
-    "Bottom-left": ("left", "bottom"),
-    "Bottom-right": ("right", "bottom"),
-    "Center": ("center", "middle"),
-}
-
 DEFAULT_SOCIAL_CAPTION = "Fresh 3D concept created in this app."
 DEFAULT_SOCIAL_TAGS = "3d, 3dmodel, digitalart, tiktok"
 DEFAULT_SOCIAL_CTA = "What should I create next?"
@@ -595,149 +585,14 @@ def load_glb_as_mesh(glb_path):
     return mesh
 
 
-def export_mesh_bytes(mesh, file_type, watermark_text=""):
-    """Export a trimesh mesh to bytes for Streamlit download buttons.
-
-    When ``watermark_text`` is provided, non-destructive attribution is embedded:
-    a metadata field for formats that support it, an OBJ comment header, or the
-    unused 80-byte header of binary STL files.
-    """
-    if watermark_text:
-        metadata = dict(mesh.metadata or {})
-        metadata["watermark"] = watermark_text
-        mesh.metadata = metadata
-
+def export_mesh_bytes(mesh, file_type):
+    """Export a trimesh mesh to bytes for Streamlit download buttons."""
     payload = mesh.export(file_type=file_type)
     if isinstance(payload, str):
-        if watermark_text and file_type == "obj":
-            payload = f"# Watermark: {watermark_text}\n" + payload
         return payload.encode("utf-8")
     if isinstance(payload, bytes):
-        if watermark_text and file_type == "stl" and len(payload) >= 84:
-            header_bytes = watermark_text.encode("utf-8", errors="ignore")[:80].ljust(80, b" ")
-            payload = header_bytes + payload[80:]
         return payload
     raise ValueError(f"Unsupported export payload for {file_type}")
-
-
-def add_glb_watermark_bytes(glb_bytes, watermark_text):
-    """Embed attribution metadata into a GLB's asset generator/extras fields."""
-    if not watermark_text or not glb_bytes:
-        return glb_bytes
-    try:
-        from pygltflib import GLTF2
-
-        gltf = GLTF2.load_from_bytes(glb_bytes)
-        gltf.asset.generator = watermark_text
-        extras = dict(gltf.asset.extras or {})
-        extras["watermark"] = watermark_text
-        gltf.asset.extras = extras
-        out = gltf.save_to_bytes()
-        return b"".join(out) if isinstance(out, list) else out
-    except Exception:
-        return glb_bytes
-
-
-def get_watermark_settings():
-    """Return the current watermark/branding settings from session state, with defaults."""
-    text = (st.session_state.get("watermark_text", DEFAULT_WATERMARK_TEXT) or "").strip()
-    return {
-        "text": text or DEFAULT_WATERMARK_TEXT,
-        "opacity": float(st.session_state.get("watermark_opacity", 0.35)),
-        "position": st.session_state.get("watermark_position", "Bottom-right"),
-        "images_enabled": st.session_state.get("watermark_images_enabled", True),
-        "video_enabled": st.session_state.get("watermark_video_enabled", True),
-        "models_enabled": st.session_state.get("watermark_models_enabled", True),
-    }
-
-
-def apply_image_watermark(image_path, text, opacity=0.35, position="Bottom-right"):
-    """Overlay a semi-transparent text watermark onto an image file, in place."""
-    if not text or not image_path or not os.path.exists(image_path):
-        return
-    try:
-        base_image = Image.open(image_path)
-        base_image.load()
-        base_image = base_image.convert("RGBA")
-
-        overlay = Image.new("RGBA", base_image.size, (0, 0, 0, 0))
-        draw = ImageDraw.Draw(overlay)
-
-        font_size = max(14, min(base_image.size) // 20)
-        try:
-            from PIL import ImageFont
-
-            font = ImageFont.load_default(size=font_size)
-        except Exception:
-            font = None
-
-        if font is not None and hasattr(draw, "textbbox"):
-            bbox = draw.textbbox((0, 0), text, font=font)
-            text_w, text_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-        else:
-            text_w, text_h = (len(text) * font_size // 2, font_size)
-
-        margin = max(8, font_size // 2)
-        h_anchor, v_anchor = WATERMARK_POSITIONS.get(position, WATERMARK_POSITIONS["Bottom-right"])
-        if h_anchor == "left":
-            x = margin
-        elif h_anchor == "center":
-            x = (base_image.width - text_w) // 2
-        else:
-            x = base_image.width - text_w - margin
-        if v_anchor == "top":
-            y = margin
-        elif v_anchor == "middle":
-            y = (base_image.height - text_h) // 2
-        else:
-            y = base_image.height - text_h - margin
-
-        alpha = max(0, min(255, int(255 * opacity)))
-        draw.text((x, y), text, font=font, fill=(255, 255, 255, alpha))
-
-        watermarked = Image.alpha_composite(base_image, overlay).convert("RGB")
-        watermarked.save(image_path)
-    except Exception:
-        # Watermarking is best-effort; never block image generation on a failure here.
-        pass
-
-
-def apply_video_watermark(clip, text, opacity=0.35, position="Bottom-right"):
-    """Overlay a semi-transparent text watermark onto a video clip for its full duration."""
-    if not text:
-        return clip
-    try:
-        from moviepy import CompositeVideoClip, TextClip
-
-        font_size = max(18, int(min(clip.w, clip.h) * 0.05))
-        txt_clip = TextClip(text=text, font_size=font_size, color="white")
-
-        txt_clip = (
-            txt_clip.with_opacity(opacity) if hasattr(txt_clip, "with_opacity") else txt_clip.set_opacity(opacity)
-        )
-
-        margin = max(10, font_size // 2)
-        position_map = {
-            "Top-left": (margin, margin),
-            "Top-right": ("right", margin),
-            "Bottom-left": (margin, "bottom"),
-            "Bottom-right": ("right", "bottom"),
-            "Center": ("center", "center"),
-        }
-        pos = position_map.get(position, ("right", "bottom"))
-        txt_clip = (
-            txt_clip.with_position(pos) if hasattr(txt_clip, "with_position") else txt_clip.set_position(pos)
-        )
-        txt_clip = (
-            txt_clip.with_duration(clip.duration)
-            if hasattr(txt_clip, "with_duration")
-            else txt_clip.set_duration(clip.duration)
-        )
-
-        return CompositeVideoClip([clip, txt_clip])
-    except Exception:
-        # Watermarking is best-effort; fall back to the un-watermarked clip on any failure.
-        return clip
 
 
 def get_session_glb_path():
@@ -840,9 +695,6 @@ def edit_video_with_moviepy(
     black_and_white=False,
     mirror_horizontal=False,
     mute_audio=False,
-    watermark_text="",
-    watermark_opacity=0.35,
-    watermark_position="Bottom-right",
 ):
         """Trim, optionally change speed, and apply effects with MoviePy."""
         from moviepy import VideoFileClip
@@ -864,11 +716,6 @@ def edit_video_with_moviepy(
             edited_clip = _apply_video_effects(
                 edited_clip, black_and_white, mirror_horizontal, mute_audio
             )
-
-            if watermark_text:
-                edited_clip = apply_video_watermark(
-                    edited_clip, watermark_text, watermark_opacity, watermark_position
-                )
 
             edited_clip.write_videofile(
                 output_path,
@@ -1115,48 +962,6 @@ installButton.addEventListener('click', async () => {
 
     st.markdown(install_button_html, unsafe_allow_html=True)
 
-    with st.expander("🔖 Branding & Watermark Settings", expanded=False):
-        st.caption(
-            "Add attribution to your generated images, videos, and 3D exports to help "
-            "credit the original creator. This is community-driven and can be disabled "
-            "per output type — it won't stop determined copying, but it does mark "
-            "content as coming from this app/community by default."
-        )
-        st.text_input(
-            "Watermark text / attribution",
-            value=st.session_state.get("watermark_text", DEFAULT_WATERMARK_TEXT),
-            key="watermark_text",
-        )
-        watermark_toggle_cols = st.columns(3)
-        with watermark_toggle_cols[0]:
-            st.checkbox(
-                "Watermark images", value=True, key="watermark_images_enabled"
-            )
-        with watermark_toggle_cols[1]:
-            st.checkbox(
-                "Watermark videos", value=True, key="watermark_video_enabled"
-            )
-        with watermark_toggle_cols[2]:
-            st.checkbox(
-                "Embed attribution in 3D exports (GLB/OBJ/STL)",
-                value=True,
-                key="watermark_models_enabled",
-            )
-        watermark_style_cols = st.columns(2)
-        with watermark_style_cols[0]:
-            st.slider(
-                "Watermark opacity (images/video)",
-                0.05, 1.0, 0.35, 0.05,
-                key="watermark_opacity",
-            )
-        with watermark_style_cols[1]:
-            st.selectbox(
-                "Watermark position (images/video)",
-                list(WATERMARK_POSITIONS.keys()),
-                index=list(WATERMARK_POSITIONS.keys()).index("Bottom-right"),
-                key="watermark_position",
-            )
-
     tab_details, tab_prompt, tab_chat, tab1, tab2, tab3, tab4_obj, tab4_stl, tab_blog, tab_video, tab_social, tab_links = st.tabs([
         "Details",
         "3D Model Prompt Ideas (Cohere)",
@@ -1199,14 +1004,6 @@ installButton.addEventListener('click', async () => {
                 )
                 if image_path:
                     st.session_state["image_path"] = image_path
-                    watermark_settings = get_watermark_settings()
-                    if watermark_settings["images_enabled"]:
-                        apply_image_watermark(
-                            image_path,
-                            watermark_settings["text"],
-                            watermark_settings["opacity"],
-                            watermark_settings["position"],
-                        )
                     st.session_state["last_image_generation_status"] = "Image generated successfully."
                     st.session_state["last_generated_image_prompt"] = prompt
                     st.image(image_path, caption="Generated Image", width=400)
@@ -1258,12 +1055,7 @@ installButton.addEventListener('click', async () => {
                             st.session_state["last_model_generation_status"] = "3D model generated successfully."
                             st.success("3D model generated!")
                             safe_name = sanitize_filename(filename_glb) or "model"
-                            watermark_settings = get_watermark_settings()
                             glb_download_bytes = read_binary_file(glb_path)
-                            if watermark_settings["models_enabled"]:
-                                glb_download_bytes = add_glb_watermark_bytes(
-                                    glb_download_bytes, watermark_settings["text"]
-                                )
                             st.download_button(
                                 "Download GLB",
                                 glb_download_bytes,
@@ -1307,10 +1099,7 @@ installButton.addEventListener('click', async () => {
             default_glb_name = os.path.splitext(st.session_state.get("glb_name", os.path.basename(current_glb_path)))[0]
             filename_glb_view = st.text_input("GLB filename (no extension)", value=default_glb_name, key="filename_glb_tab3")
             safe_name = sanitize_filename(filename_glb_view) or "model"
-            watermark_settings = get_watermark_settings()
             glb_view_bytes = read_binary_file(current_glb_path)
-            if watermark_settings["models_enabled"]:
-                glb_view_bytes = add_glb_watermark_bytes(glb_view_bytes, watermark_settings["text"])
             st.download_button(
                 "Download Current GLB",
                 glb_view_bytes,
@@ -1340,9 +1129,7 @@ installButton.addEventListener('click', async () => {
             if st.button("Convert to OBJ", key="convert_to_obj"):
                 try:
                     mesh = load_glb_as_mesh(obj_glb_path)
-                    watermark_settings = get_watermark_settings()
-                    obj_watermark_text = watermark_settings["text"] if watermark_settings["models_enabled"] else ""
-                    st.session_state["obj_bytes"] = export_mesh_bytes(mesh, "obj", watermark_text=obj_watermark_text)
+                    st.session_state["obj_bytes"] = export_mesh_bytes(mesh, "obj")
                     st.session_state["last_conversion_status"] = "OBJ conversion complete."
                     st.success("Conversion to OBJ complete.")
                 except Exception as exc:
@@ -1381,9 +1168,7 @@ installButton.addEventListener('click', async () => {
             if st.button("Convert to STL", key="convert_to_stl"):
                 try:
                     mesh = load_glb_as_mesh(stl_glb_path)
-                    watermark_settings = get_watermark_settings()
-                    stl_watermark_text = watermark_settings["text"] if watermark_settings["models_enabled"] else ""
-                    st.session_state["stl_bytes"] = export_mesh_bytes(mesh, "stl", watermark_text=stl_watermark_text)
+                    st.session_state["stl_bytes"] = export_mesh_bytes(mesh, "stl")
                     st.session_state["last_conversion_status"] = "STL conversion complete."
                     st.success("Conversion to STL complete.")
                 except Exception as exc:
@@ -1953,7 +1738,6 @@ installButton.addEventListener('click', async () => {
                         edited_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
                         edited_file.close()
                         try:
-                            watermark_settings = get_watermark_settings()
                             with st.spinner("Editing video with MoviePy..."):
                                 edit_video_with_moviepy(
                                     source_file.name, edited_file.name, start_time, end_time, speed,
@@ -1962,11 +1746,6 @@ installButton.addEventListener('click', async () => {
                                     black_and_white=black_and_white,
                                     mirror_horizontal=mirror_horizontal,
                                     mute_audio=mute_audio,
-                                    watermark_text=(
-                                        watermark_settings["text"] if watermark_settings["video_enabled"] else ""
-                                    ),
-                                    watermark_opacity=watermark_settings["opacity"],
-                                    watermark_position=watermark_settings["position"],
                                 )
                             st.session_state["edited_video_path"] = edited_file.name
                             st.success("Edited video is ready in the Social Share tab.")
