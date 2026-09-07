@@ -6,8 +6,8 @@ Streamlit app for turning text prompts into images and then converting those ima
 
 ## Features
 
-- Image generation with OpenAI or SDXL via Hugging Face
-- 3D model generation with Stability AI or Tripo3D
+- Image generation with OpenAI
+- 3D model generation with Stability AI
 - Interactive GLB viewer in the browser
 - Interactive AI workflow agent (Cohere-powered) with explicit modes for idea generation, prompt refinement, troubleshooting, and conversion guidance
 - Shared in-app agent context (image mode, model mode, latest prompt, generated assets, and conversion state) for grounded responses
@@ -45,11 +45,10 @@ streamlit run streamlit_app.py
 - If you see an OpenAI error like `billing_hard_limit_reached`, the active key/project has no remaining billing capacity.
 - Rotate to a funded key and update `OPENAI_API_KEY` in your local `.env` (or Streamlit secrets).
 - The app re-reads `.env` during key lookup, so key rotation is picked up on the next request.
-- As a fallback, switch image mode to `Slow_Mode_SDXL`.
 
 ## Streamlit Cloud
 
-Use `streamlit_app.py` as the app entry point. Demo users supply their own OpenAI, Hugging Face, Stability AI, or Tripo3D credentials in the generation tabs; configure only `COHERE_API_KEY` in Streamlit secrets or environment variables when enabling Cohere features. The repo is structured so it can be connected directly to Streamlit Cloud.
+Use `streamlit_app.py` as the app entry point. Demo users supply their own OpenAI or Stability AI credentials in the generation tabs; configure only `COHERE_API_KEY` in Streamlit secrets or environment variables when enabling Cohere features. The repo is structured so it can be connected directly to Streamlit Cloud.
 
 MoviePy processing is local to the Streamlit instance and runs only after an edit is
 requested. Video editing uses CPU and temporary disk space, so large or long videos
