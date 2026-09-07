@@ -1,22 +1,36 @@
-# Image to 3D Generator
+# RKstudio3Dps: Creative Studio & Ecommerce Toolkit
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://gituserc1140-rk3dpsv2-streamlit-app-main.streamlit.app)
 
-Streamlit app for turning text prompts into images and then converting those images into 3D models.
+RKstudio3Dps is a Streamlit workspace for taking an idea from AI-assisted concepting through image and 3D creation, content production, and social-ready exports. It supports creators building assets for 3D printing, ecommerce, and social media—not only image-to-3D conversion.
 
 ## Features
 
-- Image generation with OpenAI
-- 3D model generation with Stability AI
-- Interactive GLB viewer in the browser
-- Interactive AI workflow agent (Cohere-powered) with explicit modes for idea generation, prompt refinement, troubleshooting, and conversion guidance
-- Shared in-app agent context (image mode, model mode, latest prompt, generated assets, and conversion state) for grounded responses
-- One-click agent actions to apply suggestions to image prompts, prompt ideas, blog topics, and social captions
-- Cohere-powered blog writer tab for generating Markdown blog drafts from a question/topic
-- Cohere-powered prompt examples tab for generating reusable prompt ideas from a topic
-- MoviePy video editor tab for trimming, changing playback speed, fading, and applying simple effects before sharing
-- Social Share tab for preparing generated images or 3D preview snapshots for TikTok-style posting
-- PWA metadata and service worker support
+### Create and build
+
+- Generate images from text prompts with OpenAI
+- Generate 3D models with Stability AI
+- View GLB models interactively in the browser
+- Convert GLB files to OBJ or STL for compatible 3D-printing workflows
+- Find 3D-printing resources through quick links to Cults3D and Tinkercad
+
+### Develop ideas with AI
+
+- Create reusable 3D model prompt ideas with Cohere
+- Chat with an AI assistant for image prompts, styling ideas, and model concepts
+- Apply assistant suggestions directly to image prompts, 3D prompt ideas, blog topics, or social captions
+- Draft Markdown blog posts with the Cohere-powered blog writer
+
+### Produce and share content
+
+- Edit videos with trimming, playback-speed controls, fades, black-and-white, mirroring, and audio muting
+- Prepare generated images, 3D model previews, and edited videos for download and social posts
+- Build social captions with post formats, hashtags, and calls to action
+- Open tools for ecommerce and promotion, including Shopify, TikTok Shop, Printful, Etsy, Canva, TikTok, Medium, ChatGPT, and Claude
+
+### App experience
+
+- Progressive web app metadata and service-worker support
 
 ## Run locally
 
