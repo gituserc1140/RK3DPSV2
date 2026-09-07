@@ -623,17 +623,119 @@ def read_binary_file(path):
         return f.read()
 
 
-def edit_video_with_moviepy(input_path, output_path, start_time, end_time, speed):
-        """Trim and optionally change the playback speed of a video with MoviePy."""
+def _subclip(clip, start_time, end_time):
+    """Return a trimmed subclip, compatible with MoviePy v1 and v2 APIs."""
+    if hasattr(clip, "subclipped"):
+        return clip.subclipped(start_time, end_time)
+    return clip.subclip(start_time, end_time)
+
+
+def _apply_fades(clip, fade_in_sec=0.0, fade_out_sec=0.0):
+    """Apply fade-in/fade-out effects to a clip, compatible across MoviePy versions."""
+    fade_in_sec = float(fade_in_sec or 0)
+    fade_out_sec = float(fade_out_sec or 0)
+    if fade_in_sec <= 0 and fade_out_sec <= 0:
+        return clip
+
+    if hasattr(clip, "with_effects"):
+        from moviepy import vfx
+
+        effects = []
+        if fade_in_sec > 0:
+            effects.append(vfx.FadeIn(fade_in_sec))
+        if fade_out_sec > 0:
+            effects.append(vfx.FadeOut(fade_out_sec))
+        return clip.with_effects(effects)
+
+    if fade_in_sec > 0:
+        from moviepy.video.fx import fadein
+
+        clip = clip.fx(fadein, fade_in_sec)
+    if fade_out_sec > 0:
+        from moviepy.video.fx import fadeout
+
+        clip = clip.fx(fadeout, fade_out_sec)
+    return clip
+
+
+def _insert_broll_clips(main_clip, broll_items):
+    """Insert one or more b-roll clips into main_clip at the given offsets.
+
+    ``broll_items`` is a list of (insert_at_seconds, path) tuples. Returns the
+    combined clip and a list of any opened b-roll clips (for later cleanup).
+    """
+    from moviepy import VideoFileClip, concatenate_videoclips
+
+    if not broll_items:
+        return main_clip, []
+
+    opened_clips = []
+    segments = []
+    prev_end = 0.0
+    for insert_at, broll_path in sorted(broll_items, key=lambda item: item[0]):
+        insert_at = max(0.0, min(float(insert_at), main_clip.duration))
+        if insert_at > prev_end:
+            segments.append(_subclip(main_clip, prev_end, insert_at))
+        broll_clip = VideoFileClip(broll_path)
+        opened_clips.append(broll_clip)
+        segments.append(broll_clip)
+        prev_end = insert_at
+
+    if prev_end < main_clip.duration:
+        segments.append(_subclip(main_clip, prev_end, main_clip.duration))
+
+    combined = concatenate_videoclips(segments, method="compose")
+    return combined, opened_clips
+
+
+def _apply_transition(clip, next_clip_path, transition_type, transition_duration):
+    """Join ``clip`` with a second clip using the requested transition style.
+
+    Returns a tuple of ``(combined_clip, next_clip)`` so the caller can close
+    the opened ``next_clip`` after writing the final output.
+    """
+    from moviepy import CompositeVideoClip, VideoFileClip, concatenate_videoclips, vfx
+
+    next_clip = VideoFileClip(next_clip_path)
+    transition_duration = max(0.0, float(transition_duration or 0))
+    transition_duration = min(transition_duration, clip.duration)
+
+    if transition_type == "Crossfade" and transition_duration > 0:
+        next_clip = next_clip.with_effects([vfx.CrossFadeIn(transition_duration)])
+        next_clip = next_clip.with_start(max(0.0, clip.duration - transition_duration))
+        combined = CompositeVideoClip([clip, next_clip])
+        combined = combined.with_duration(clip.duration + next_clip.duration - transition_duration)
+    elif transition_type == "Fade to black" and transition_duration > 0:
+        clip = clip.with_effects([vfx.FadeOut(transition_duration)])
+        next_clip = next_clip.with_effects([vfx.FadeIn(transition_duration)])
+        combined = concatenate_videoclips([clip, next_clip], method="compose")
+    else:
+        combined = concatenate_videoclips([clip, next_clip], method="compose")
+
+    return combined, next_clip
+
+
+def edit_video_with_moviepy(
+    input_path,
+    output_path,
+    start_time,
+    end_time,
+    speed,
+    fade_in_sec=0.0,
+    fade_out_sec=0.0,
+    broll_items=None,
+    next_clip_path=None,
+    transition_type="Cut",
+    transition_duration=0.0,
+):
+        """Trim, optionally change speed, and apply fades/transitions/b-roll with MoviePy."""
         from moviepy import VideoFileClip
 
         clip = VideoFileClip(input_path)
+        opened_clips = []
         edited_clip = None
         try:
-            if hasattr(clip, "subclipped"):
-                edited_clip = clip.subclipped(start_time, end_time)
-            else:
-                edited_clip = clip.subclip(start_time, end_time)
+            edited_clip = _subclip(clip, start_time, end_time)
 
             if speed != 1.0:
                 if hasattr(edited_clip, "with_speed_scaled"):
@@ -643,6 +745,18 @@ def edit_video_with_moviepy(input_path, output_path, start_time, end_time, speed
 
                     edited_clip = edited_clip.fx(speedx, factor=speed)
 
+            if broll_items:
+                edited_clip, broll_opened = _insert_broll_clips(edited_clip, broll_items)
+                opened_clips.extend(broll_opened)
+
+            edited_clip = _apply_fades(edited_clip, fade_in_sec, fade_out_sec)
+
+            if next_clip_path:
+                edited_clip, next_clip_opened = _apply_transition(
+                    edited_clip, next_clip_path, transition_type, transition_duration
+                )
+                opened_clips.append(next_clip_opened)
+
             edited_clip.write_videofile(
                 output_path,
                 codec="libx264",
@@ -650,6 +764,11 @@ def edit_video_with_moviepy(input_path, output_path, start_time, end_time, speed
                 logger=None,
             )
         finally:
+            for opened_clip in opened_clips:
+                try:
+                    opened_clip.close()
+                except Exception:
+                    pass
             if edited_clip is not None:
                 edited_clip.close()
             clip.close()
@@ -1620,8 +1739,9 @@ installButton.addEventListener('click', async () => {
     with tab_video:
         st.subheader("Video Editor (MoviePy)")
         st.caption(
-            "Trim or change playback speed before sharing. Processing runs only when you click "
-            "Edit Video, so it does not consume resources while you browse the tab."
+            "Trim, change playback speed, add fades, splice in b-roll, or transition into another "
+            "clip before sharing. Processing runs only when you click Edit Video, so it does not "
+            "consume resources while you browse the tab."
         )
         uploaded_video = st.file_uploader(
             "Upload a video",
@@ -1660,21 +1780,121 @@ installButton.addEventListener('click', async () => {
                         "Playback speed", [0.5, 1.0, 1.5, 2.0], index=1, key="moviepy_speed",
                     )
 
+                trimmed_duration = max(float(end_time) - float(start_time), 0.0)
+
+                with st.expander("Fades", expanded=False):
+                    fade_cols = st.columns(2)
+                    with fade_cols[0]:
+                        fade_in_sec = st.number_input(
+                            "Fade in (seconds)", min_value=0.0,
+                            max_value=max(trimmed_duration, 0.0), value=0.0, step=0.1,
+                            key="moviepy_fade_in",
+                        )
+                    with fade_cols[1]:
+                        fade_out_sec = st.number_input(
+                            "Fade out (seconds)", min_value=0.0,
+                            max_value=max(trimmed_duration, 0.0), value=0.0, step=0.1,
+                            key="moviepy_fade_out",
+                        )
+
+                with st.expander("B-roll insertion", expanded=False):
+                    st.caption("Upload one or more short clips to splice into the main video at specific times.")
+                    broll_uploads = st.file_uploader(
+                        "Upload b-roll clip(s)",
+                        type=["mp4", "mov", "avi", "mkv", "webm"],
+                        accept_multiple_files=True,
+                        key="moviepy_broll_upload",
+                    )
+                    broll_items = []
+                    if broll_uploads:
+                        for broll_upload in broll_uploads:
+                            broll_suffix = os.path.splitext(broll_upload.name)[1].lower() or ".mp4"
+                            broll_temp = tempfile.NamedTemporaryFile(delete=False, suffix=broll_suffix)
+                            broll_temp.write(broll_upload.getvalue())
+                            broll_temp.close()
+                            insert_at = st.number_input(
+                                f"Insert '{broll_upload.name}' at (seconds)",
+                                min_value=0.0, max_value=max(trimmed_duration, 0.0), value=0.0,
+                                step=0.5,
+                                key=f"moviepy_broll_insert_{broll_upload.file_id}",
+                            )
+                            broll_items.append((insert_at, broll_temp.name))
+
+                broll_total_duration = 0.0
+                if broll_items:
+                    from moviepy import VideoFileClip as _BrollProbeClip
+
+                    for _, broll_path in broll_items:
+                        try:
+                            probe_clip = _BrollProbeClip(broll_path)
+                            broll_total_duration += float(probe_clip.duration or 0)
+                            probe_clip.close()
+                        except Exception as exc:
+                            st.warning(f"Could not read duration for a b-roll clip: {exc}")
+                effective_duration = trimmed_duration + broll_total_duration
+
+                next_clip_temp_path = None
+                with st.expander("Transition to next clip", expanded=False):
+                    st.caption("Upload a second clip to append after the main video with a transition.")
+                    next_clip_upload = st.file_uploader(
+                        "Upload next clip",
+                        type=["mp4", "mov", "avi", "mkv", "webm"],
+                        key="moviepy_next_clip_upload",
+                    )
+                    transition_cols = st.columns(2)
+                    with transition_cols[0]:
+                        transition_type = st.selectbox(
+                            "Transition type", ["Cut", "Fade to black", "Crossfade"],
+                            key="moviepy_transition_type",
+                        )
+                    with transition_cols[1]:
+                        # Cap at 10s; longer transitions are rare and are also
+                        # clamped to the main clip's duration in _apply_transition.
+                        transition_duration = st.number_input(
+                            "Transition duration (seconds)", min_value=0.0, max_value=10.0,
+                            value=1.0, step=0.1, key="moviepy_transition_duration",
+                        )
+                    if next_clip_upload:
+                        next_suffix = os.path.splitext(next_clip_upload.name)[1].lower() or ".mp4"
+                        next_clip_temp = tempfile.NamedTemporaryFile(delete=False, suffix=next_suffix)
+                        next_clip_temp.write(next_clip_upload.getvalue())
+                        next_clip_temp.close()
+                        next_clip_temp_path = next_clip_temp.name
+
                 if st.button("Edit Video", type="primary", key="moviepy_edit_video"):
                     if end_time <= start_time:
                         st.error("End time must be greater than start time.")
+                    elif fade_in_sec + fade_out_sec > effective_duration:
+                        st.error("Fade in + fade out durations cannot exceed the clip length (including any b-roll).")
                     else:
                         edited_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
                         edited_file.close()
                         try:
                             with st.spinner("Editing video with MoviePy..."):
                                 edit_video_with_moviepy(
-                                    source_file.name, edited_file.name, start_time, end_time, speed
+                                    source_file.name, edited_file.name, start_time, end_time, speed,
+                                    fade_in_sec=fade_in_sec,
+                                    fade_out_sec=fade_out_sec,
+                                    broll_items=broll_items,
+                                    next_clip_path=next_clip_temp_path,
+                                    transition_type=transition_type,
+                                    transition_duration=transition_duration,
                                 )
                             st.session_state["edited_video_path"] = edited_file.name
                             st.success("Edited video is ready in the Social Share tab.")
                         except Exception as exc:
                             st.error(f"Video editing failed: {exc}")
+                        finally:
+                            for _, broll_path in broll_items:
+                                try:
+                                    os.unlink(broll_path)
+                                except OSError:
+                                    pass
+                            if next_clip_temp_path:
+                                try:
+                                    os.unlink(next_clip_temp_path)
+                                except OSError:
+                                    pass
 
         edited_video_path = st.session_state.get("edited_video_path")
         edited_video_bytes = read_binary_file(edited_video_path)
