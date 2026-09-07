@@ -14,7 +14,7 @@ Streamlit app for turning text prompts into images and then converting those ima
 - One-click agent actions to apply suggestions to image prompts, prompt ideas, blog topics, and social captions
 - Cohere-powered blog writer tab for generating Markdown blog drafts from a question/topic
 - Cohere-powered prompt examples tab for generating reusable prompt ideas from a topic
-- MoviePy video editor tab for trimming and changing playback speed before sharing
+- MoviePy video editor tab for trimming, changing playback speed, fading, and applying simple effects before sharing
 - Social Share tab for preparing generated images or 3D preview snapshots for TikTok-style posting
 - PWA metadata and service worker support
 
